@@ -77,24 +77,6 @@ const jobId = searchParams.get('jobId');
       };
     }
 
-    async function triggerMockApprovedGeneration() {
-      if (!queryJobId) return;
-      try {
-        const res = await fetch('/api/generate-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jobId: queryJobId, paymentStatus: 'approved', mockApproved: true }),
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          console.warn('mock payment not accepted', data);
-        }
-      } catch (error) {
-        console.warn('mock generation failed', error);
-      }
-    }
-
     async function poll() {
       if (!queryJobId) return;
 
@@ -129,10 +111,6 @@ const jobId = searchParams.get('jobId');
     }
 
     if (queryJobId) {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('mockApproved') === '1') {
-        triggerMockApprovedGeneration();
-      }
       poll();
     }
   </script>

@@ -136,6 +136,8 @@ export async function createJob({ email, files }: { email: string; files: File[]
       payment_status: 'pending',
       payment_id: null,
       mercadopago_preference_id: null,
+      payment_url: null,
+      external_reference: jobId,
       input_image_1_path: uploadedPaths[0] || null,
       input_image_2_path: uploadedPaths[1] || null,
       output_image_path: null,
@@ -270,6 +272,175 @@ export async function updateJob(jobId: string, updates: Partial<JobRecord>) {
   jobs[jobId] = next;
   await writeJobs(jobs);
   return next;
+}
+
+export type PaidJobClaimReason =
+  | 'claimed'
+  | 'job_not_found'
+  | 'already_processing'
+  | 'already_completed'
+  | 'payment_id_in_use'
+  | 'incompatible_payment'
+  | 'not_claimable';
+
+export interface PaidJobClaimResult {
+  claimed: boolean;
+  reason: PaidJobClaimReason;
+  job: JobRecord | null;
+}
+
+function isUniqueViolation(error: unknown) {
+  return Boolean(
+    error
+    && typeof error === 'object'
+    && 'code' in error
+    && String(error.code) === '23505',
+  );
+}
+
+async function isPaymentIdUsedByAnotherJob(paymentId: string, jobId: string) {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('id')
+    .eq('payment_id', paymentId)
+    .neq('id', jobId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw createSupabaseOperationError(
+      'SUPABASE_PAYMENT_LOOKUP_FAILED',
+      'No se pudo comprobar la unicidad del pago.',
+      error,
+    );
+  }
+
+  return Boolean(data);
+}
+
+export async function claimApprovedPaymentForProcessing({
+  jobId,
+  paymentId,
+}: {
+  jobId: string;
+  paymentId: string;
+}): Promise<PaidJobClaimResult> {
+  if (!isSupabaseConfigured()) {
+    throw new SupabaseBackendError(
+      'SUPABASE_REQUIRED_FOR_PAYMENTS',
+      'El procesamiento de pagos reales requiere Supabase.',
+      500,
+    );
+  }
+
+  if (await isPaymentIdUsedByAnotherJob(paymentId, jobId)) {
+    return { claimed: false, reason: 'payment_id_in_use', job: null };
+  }
+
+  const supabase = getSupabaseAdmin();
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('jobs')
+    .update({
+      status: 'processing',
+      payment_status: 'approved',
+      payment_id: paymentId,
+      external_reference: jobId,
+      error_message: null,
+      updated_at: now,
+    })
+    .eq('id', jobId)
+    .eq('status', 'pending_payment')
+    .in('payment_status', ['pending', 'rejected', 'cancelled', 'failed'])
+    .or(`payment_id.is.null,payment_id.eq.${paymentId}`)
+    .select('*')
+    .maybeSingle();
+
+  if (error) {
+    if (isUniqueViolation(error)) {
+      return { claimed: false, reason: 'payment_id_in_use', job: null };
+    }
+
+    throw createSupabaseOperationError(
+      'SUPABASE_PAYMENT_CLAIM_FAILED',
+      'No se pudo reservar el job pagado para procesamiento.',
+      error,
+    );
+  }
+
+  if (data) {
+    return { claimed: true, reason: 'claimed', job: mapJobRow(data) };
+  }
+
+  const current = await getJob(jobId);
+  if (!current) {
+    return { claimed: false, reason: 'job_not_found', job: null };
+  }
+  if (current.paymentId && current.paymentId !== paymentId) {
+    return { claimed: false, reason: 'incompatible_payment', job: current };
+  }
+  if (current.status === 'processing') {
+    return { claimed: false, reason: 'already_processing', job: current };
+  }
+  if (current.status === 'completed') {
+    return { claimed: false, reason: 'already_completed', job: current };
+  }
+  return { claimed: false, reason: 'not_claimable', job: current };
+}
+
+export async function recordUnapprovedPayment({
+  jobId,
+  paymentId,
+  paymentStatus,
+  errorMessage,
+}: {
+  jobId: string;
+  paymentId: string;
+  paymentStatus: Exclude<PaymentStatus, 'approved' | null>;
+  errorMessage: string | null;
+}) {
+  if (!isSupabaseConfigured()) {
+    throw new SupabaseBackendError(
+      'SUPABASE_REQUIRED_FOR_PAYMENTS',
+      'El procesamiento de pagos reales requiere Supabase.',
+      500,
+    );
+  }
+
+  if (await isPaymentIdUsedByAnotherJob(paymentId, jobId)) {
+    return null;
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('jobs')
+    .update({
+      payment_status: paymentStatus,
+      external_reference: jobId,
+      error_message: errorMessage,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', jobId)
+    .eq('status', 'pending_payment')
+    .in('payment_status', ['pending', 'rejected', 'cancelled', 'failed'])
+    .or(`payment_id.is.null,payment_id.eq.${paymentId}`)
+    .select('*')
+    .maybeSingle();
+
+  if (error) {
+    if (isUniqueViolation(error)) {
+      return null;
+    }
+
+    throw createSupabaseOperationError(
+      'SUPABASE_PAYMENT_STATUS_UPDATE_FAILED',
+      'No se pudo actualizar el estado del pago.',
+      error,
+    );
+  }
+
+  return data ? mapJobRow(data) : null;
 }
 
 export async function getUploadPath(jobId: string, fileName: string) {

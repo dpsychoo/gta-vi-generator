@@ -13,7 +13,7 @@ import { getOpenAIApiKey, getOpenAIStylePrompt } from './server/env';
 
 const OPENAI_IMAGE_ENDPOINT = 'https://api.openai.com/v1/images/edits';
 const OPENAI_IMAGE_MODEL = 'gpt-image-2';
-const OPENAI_TIMEOUT_MS = 10 * 60 * 1000;
+const OPENAI_TIMEOUT_MS = 4 * 60 * 1000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -238,8 +238,11 @@ async function claimPendingJob(job: JobRecord) {
   }
 }
 
-export async function generateDevelopmentResultImage(jobId: string): Promise<DevelopmentGenerationResult> {
-  if (import.meta.env.PROD) {
+async function generateResultImage(
+  jobId: string,
+  authorization: 'development' | 'mercadopago',
+): Promise<DevelopmentGenerationResult> {
+  if (authorization === 'development' && import.meta.env.PROD) {
     throw new DevelopmentGenerationError('La generaciÃ³n manual solo estÃ¡ disponible en desarrollo.', {
       statusCode: 403,
     });
@@ -267,11 +270,19 @@ export async function generateDevelopmentResultImage(jobId: string): Promise<Dev
     throw new DevelopmentGenerationError('Job no encontrado.', { statusCode: 404 });
   }
 
-  if (job.status === 'completed' && job.outputImagePath) {
+  if (
+    job.status === 'completed'
+    && job.outputImagePath
+    && (authorization === 'development' || job.paymentStatus === 'approved')
+  ) {
     return completedResult(job);
   }
 
-  if (job.status !== 'pending_payment') {
+  const hasExpectedStatus = authorization === 'development'
+    ? job.status === 'pending_payment'
+    : job.status === 'processing' && job.paymentStatus === 'approved' && Boolean(job.paymentId);
+
+  if (!hasExpectedStatus) {
     throw new DevelopmentGenerationError(`El job no se puede generar desde status=${job.status}.`, {
       statusCode: 409,
     });
@@ -285,8 +296,10 @@ export async function generateDevelopmentResultImage(jobId: string): Promise<Dev
   let didStartProcessing = false;
 
   try {
-    await claimPendingJob(job);
-    didStartProcessing = true;
+    if (authorization === 'development') {
+      await claimPendingJob(job);
+      didStartProcessing = true;
+    }
 
     const master = await loadPrivateImage(
       getSupabasePrivateBucket(),
@@ -402,7 +415,9 @@ export async function generateDevelopmentResultImage(jobId: string): Promise<Dev
       errorMessage: null,
       metadata: {
         ...(job.metadata || {}),
-        developmentGenerationAuthorizedAt: new Date().toISOString(),
+        ...(authorization === 'development'
+          ? { developmentGenerationAuthorizedAt: new Date().toISOString() }
+          : { paymentGenerationAuthorizedAt: new Date().toISOString() }),
         provider: 'openai',
         model: OPENAI_IMAGE_MODEL,
         inputCount: secondary ? 3 : 2,
@@ -427,5 +442,27 @@ export async function generateDevelopmentResultImage(jobId: string): Promise<Dev
       await markJobFailed(jobId, safeError.message);
     }
     throw safeError;
+  }
+}
+
+export function generateDevelopmentResultImage(jobId: string) {
+  return generateResultImage(jobId, 'development');
+}
+
+export async function processPaidJob(jobId: string) {
+  try {
+    return await generateResultImage(jobId, 'mercadopago');
+  } catch (error) {
+    try {
+      const job = await getJob(jobId);
+      if (job?.status === 'processing' && job.paymentStatus === 'approved') {
+        await markJobFailed(jobId, 'No se pudo completar la generación de la imagen.');
+      }
+    } catch {
+      if (import.meta.env.DEV) {
+        console.error('No se pudo guardar el fallo del job pagado.');
+      }
+    }
+    throw error;
   }
 }

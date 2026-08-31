@@ -1,96 +1,191 @@
 import type { APIRoute } from 'astro';
-import { createHmac, timingSafeEqual } from 'node:crypto';
-import { getJob, updateJob } from '../../lib/job-store';
-import { verifyMercadoPagoPayment } from '../../lib/mercadopago';
+import {
+  claimApprovedPaymentForProcessing,
+  getJob,
+  recordUnapprovedPayment,
+} from '../../lib/job-store';
+import {
+  getExpectedJobPaymentConfig,
+  getMercadoPagoMerchantOrder,
+  getMercadoPagoPayment,
+  getRequiredMercadoPagoWebhookSecret,
+  isValidMercadoPagoPaymentId,
+  mapMercadoPagoPaymentStatus,
+  MercadoPagoIntegrationError,
+  validateMercadoPagoWebhookSignature,
+  type MercadoPagoPayment,
+} from '../../lib/mercadopago';
+import { DevelopmentGenerationError, processPaidJob } from '../../lib/openai';
+import { SupabaseBackendError } from '../../lib/supabase';
 
 export const prerender = false;
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type WebhookBody = {
+  type?: unknown;
+  data?: {
+    id?: unknown;
+  };
+};
+
+function jsonResponse(payload: Record<string, unknown>, status: number) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+function parseWebhookBody(rawBody: string): WebhookBody | null {
+  if (!rawBody.trim()) {
+    return {};
+  }
+
+  try {
+    const value = JSON.parse(rawBody);
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? value as WebhookBody
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function getBodyDataId(body: WebhookBody) {
+  const value = body.data?.id;
+  return value === undefined || value === null ? '' : String(value).trim();
+}
+
+async function getVerifiedPreferenceId(payment: MercadoPagoPayment, jobId: string) {
+  let preferenceId = payment.preferenceId;
+
+  if (payment.orderId) {
+    const order = await getMercadoPagoMerchantOrder(payment.orderId);
+    if (order.externalReference && order.externalReference !== jobId) {
+      return { valid: false, preferenceId: null };
+    }
+    if (preferenceId && order.preferenceId && preferenceId !== order.preferenceId) {
+      return { valid: false, preferenceId: null };
+    }
+    preferenceId = preferenceId || order.preferenceId;
+  }
+
+  return { valid: true, preferenceId };
+}
+
 export const POST: APIRoute = async ({ request }) => {
   try {
+    const url = new URL(request.url);
+    const queryDataId = (url.searchParams.get('data.id') || '').trim();
+    const queryType = (url.searchParams.get('type') || url.searchParams.get('topic') || '').trim();
+    const xRequestId = request.headers.get('x-request-id');
+    const xSignature = request.headers.get('x-signature');
+    const secret = getRequiredMercadoPagoWebhookSecret();
     const rawBody = await request.text();
-    const body = rawBody ? JSON.parse(rawBody) : {};
-    const paymentId = String(body?.data?.id || body?.payment_id || body?.id || '').trim();
-    const type = String(body?.type || '').trim();
-    const signature = request.headers.get('x-signature') || request.headers.get('x-mp-signature') || '';
-    const webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+    const body = parseWebhookBody(rawBody);
 
-    if (webhookSecret && signature) {
-      const expected = createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
-      const candidate = signature.startsWith('v1=') ? signature.slice(3) : signature;
-      const a = Buffer.from(expected);
-      const b = Buffer.from(candidate);
-      if (a.length !== b.length || !timingSafeEqual(a, b)) {
-        return new Response(JSON.stringify({ ok: false, error: 'Webhook no autorizado' }), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
+    if (!xRequestId || !validateMercadoPagoWebhookSignature({
+      xSignature,
+      xRequestId,
+      dataId: queryDataId || null,
+      secret,
+    })) {
+      console.warn('[mercadopago-webhook] invalid_signature');
+      return jsonResponse({ ok: false, error: 'Webhook no autorizado.' }, 401);
     }
 
-    if (!paymentId && !type) {
-      return new Response(JSON.stringify({ ok: false, error: 'Webhook inválido' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+    if (!body) {
+      return jsonResponse({ ok: false, error: 'Webhook inválido.' }, 400);
     }
 
-    const verified = await verifyMercadoPagoPayment(paymentId);
-    const jobId = String(body?.data?.external_reference || body?.external_reference || body?.externalReference || '').trim();
+    const bodyType = typeof body.type === 'string' ? body.type.trim() : '';
+    const notificationType = (queryType || bodyType).toLowerCase();
+    if (notificationType !== 'payment') {
+      return jsonResponse({ ok: true, ignored: true }, 200);
+    }
 
-    if (!jobId) {
-      return new Response(JSON.stringify({ ok: true, status: verified.status, skipped: true, reason: 'external_reference missing' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
+    const bodyDataId = getBodyDataId(body);
+    if (queryDataId && bodyDataId && bodyDataId !== queryDataId) {
+      return jsonResponse({ ok: false, error: 'Webhook inconsistente.' }, 400);
+    }
+
+    const paymentId = queryDataId || bodyDataId;
+    if (!isValidMercadoPagoPaymentId(paymentId)) {
+      return jsonResponse({ ok: false, error: 'payment_id inválido.' }, 400);
+    }
+
+    const expected = getExpectedJobPaymentConfig();
+    const payment = await getMercadoPagoPayment(paymentId);
+    console.info(`[mercadopago-webhook] payment_http_status=${payment.httpStatus}`);
+
+    const jobId = payment.externalReference || '';
+    if (!UUID_PATTERN.test(jobId)) {
+      console.warn('[mercadopago-webhook] invalid_external_reference');
+      return jsonResponse({ ok: true, ignored: true }, 200);
     }
 
     const job = await getJob(jobId);
-    if (job && (job.status === 'processing' || job.status === 'completed')) {
-      return new Response(JSON.stringify({ ok: true, status: verified.status, skipped: true, reason: 'already processed' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
+    if (!job) {
+      console.warn('[mercadopago-webhook] job_not_found');
+      return jsonResponse({ ok: true, ignored: true }, 200);
     }
 
-    if (job && job.paymentId && job.paymentId !== String(paymentId) && job.status !== 'failed') {
-      return new Response(JSON.stringify({ ok: true, status: verified.status, skipped: true, reason: 'different payment already attached' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
+    const orderPreference = await getVerifiedPreferenceId(payment, jobId);
+    const paymentMatchesJob = payment.externalReference === job.id
+      && job.externalReference === job.id
+      && payment.currencyId === expected.currency
+      && payment.transactionAmount === expected.price
+      && Boolean(job.mercadopagoPreferenceId)
+      && orderPreference.valid
+      && (!orderPreference.preferenceId || orderPreference.preferenceId === job.mercadopagoPreferenceId);
+
+    if (!paymentMatchesJob) {
+      await recordUnapprovedPayment({
+        jobId,
+        paymentId,
+        paymentStatus: 'failed',
+        errorMessage: 'El pago recibido no coincide con el cobro esperado.',
       });
+      console.warn('[mercadopago-webhook] payment_validation_failed');
+      return jsonResponse({ ok: true, accepted: false }, 200);
     }
 
-    const paymentStatus = verified.status === 'approved' ? 'approved' : 'rejected';
-
-    await updateJob(jobId, {
-      status: verified.status === 'approved' ? 'paid' : 'failed',
-      paymentStatus,
-      paymentId: String(paymentId),
-      externalReference: jobId,
-      errorMessage: verified.status === 'approved' ? null : `Pago no aprobado: ${verified.status}`,
-      metadata: {
-        ...(job?.metadata || {}),
-        webhookType: type || 'payment',
-        paymentVerifiedAt: new Date().toISOString(),
-      },
-    });
-
-    if (verified.status === 'approved') {
-      await fetch(`${process.env.APP_BASE_URL || 'http://localhost:4321'}/api/generate-image`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId, paymentStatus: 'approved' }),
+    const mappedPaymentStatus = mapMercadoPagoPaymentStatus(payment.status);
+    if (mappedPaymentStatus !== 'approved') {
+      await recordUnapprovedPayment({
+        jobId,
+        paymentId,
+        paymentStatus: mappedPaymentStatus,
+        errorMessage: mappedPaymentStatus === 'pending' ? null : 'El pago no fue aprobado.',
       });
+      return jsonResponse({ ok: true, paymentStatus: mappedPaymentStatus }, 200);
     }
 
-    return new Response(JSON.stringify({ ok: true, status: verified.status }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    const claim = await claimApprovedPaymentForProcessing({ jobId, paymentId });
+    if (!claim.claimed) {
+      console.info(`[mercadopago-webhook] generation_skipped=${claim.reason}`);
+      return jsonResponse({ ok: true, skipped: true }, 200);
+    }
+
+    await processPaidJob(jobId);
+    return jsonResponse({ ok: true, paymentStatus: 'approved', jobStatus: 'completed' }, 200);
   } catch (error) {
-    console.error('mercadopago-webhook error', error);
-    return new Response(JSON.stringify({ ok: false, error: (error as Error).message || 'Error del webhook' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    if (error instanceof MercadoPagoIntegrationError) {
+      console.error(`[mercadopago-webhook] ${error.code}`);
+      return jsonResponse({ ok: false, error: 'No se pudo verificar el pago.' }, error.statusCode);
+    }
+
+    if (error instanceof SupabaseBackendError) {
+      console.error(`[mercadopago-webhook] ${error.code}`);
+      return jsonResponse({ ok: false, error: 'No se pudo actualizar el pedido.' }, error.status);
+    }
+
+    if (error instanceof DevelopmentGenerationError) {
+      console.error('[mercadopago-webhook] generation_failed');
+      return jsonResponse({ ok: false, error: 'No se pudo completar la generación.' }, 500);
+    }
+
+    console.error('[mercadopago-webhook] unexpected_error');
+    return jsonResponse({ ok: false, error: 'Error interno del webhook.' }, 500);
   }
 };

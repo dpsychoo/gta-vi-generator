@@ -15,8 +15,7 @@ Este proyecto incluye el flujo real de negocio del generador:
    - imagen maestra privada de referencia
    - imágenes del cliente
 6. guardar la salida
-7. enviar email con resultado
-8. mostrar la imagen en la vista de resultado
+7. mostrar la imagen en la vista de resultado
 
 La UI de la landing no fue alterada en diseño. Los cambios aplicados están en backend y flujo funcional.
 
@@ -25,7 +24,6 @@ La UI de la landing no fue alterada en diseño. Los cambios aplicados están en 
 - `src/lib/job-store.ts` — persistencia local de jobs y archivos
 - `src/lib/mercadopago.ts` — creación y verificación de pagos
 - `src/lib/openai.ts` — generación de imagen con prompt + imagen maestra + fotos del cliente
-- `src/lib/email.ts` — envío de correos con Resend
 - `src/pages/api/create-job.ts` — creación del job y redirección al pago
 - `src/pages/api/mercadopago-webhook.ts` — webhook de aprobación
 - `src/pages/api/generate-image.ts` — trigger de generación solo con pago aprobado
@@ -39,7 +37,7 @@ Copia `.env.example` a `.env` y completa los valores reales:
 
 ```env
 OPENAI_API_KEY=
-OPENAI_IMAGE_MODEL=gpt-image-1
+OPENAI_IMAGE_MODEL=gpt-image-2
 OPENAI_STYLE_PROMPT="..."
 MASTER_STYLE_REFERENCE_PATH=/ruta/privada/imagen-maestra.jpg
 MERCADOPAGO_ACCESS_TOKEN=
@@ -48,13 +46,13 @@ RESEND_API_KEY=
 RESEND_FROM_EMAIL=no-reply@tu-dominio.com
 APP_BASE_URL=http://localhost:4321
 JOB_CURRENCY=CLP
-JOB_PRICE=3000
+JOB_PRICE=2990
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 SUPABASE_UPLOADS_BUCKET=customer-uploads
 SUPABASE_GENERATED_BUCKET=generated-images
-SUPABASE_PRIVATE_BUCKET=private-system
+SUPABASE_PRIVATE_BUCKET=system-private
 ```
 
 ## 🖼️ Imagen maestra de referencia
@@ -77,16 +75,10 @@ El prompt maestro queda del lado backend y no se expone al frontend. Se define c
 
 - `MERCADOPAGO_ACCESS_TOKEN` habilita la integración real.
 - `MERCADOPAGO_WEBHOOK_SECRET` valida la autenticidad del webhook.
-- Si no hay token configurado, el proyecto entra en modo mock para no romper la estructura local.
-
-## 🧪 Modo mock / fallback
-
-Si faltan credenciales reales, el sistema sigue funcionando con mock local:
-
-- `create-job` crea el job y devuelve una URL mock de pago
-- `webhook` puede validarse con `mockApproved=1` en la página de resultado
-- `generate-image` puede ejecutarse con `mockApproved: true` para terminar el flujo en local
-- `email` se loguea en consola en lugar de enviar real
+- `JOB_CURRENCY=CLP` y `JOB_PRICE=2990` son obligatorios.
+- Sin credenciales reales, el pago falla cerrado: no existe autoaprobación mock.
+- `/api/generate-image` queda reservado para disparos manuales en desarrollo.
+- Resend no forma parte del flujo actual.
 
 ## ✅ Flujo confirmado
 
@@ -96,7 +88,6 @@ Usuario sube imágenes
 → webhook confirma approved
 → backend genera con prompt maestro + imagen maestra + imágenes del cliente
 → guarda resultado
-→ envía email
 → muestra resultado en la página interna
 
 ## 🚀 Comandos

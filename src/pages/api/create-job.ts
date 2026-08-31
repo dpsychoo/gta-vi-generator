@@ -1,7 +1,10 @@
 import type { APIRoute } from 'astro';
 import sharp from 'sharp';
-import { createJob } from '../../lib/job-store';
-import { createMercadoPagoPreference } from '../../lib/mercadopago';
+import { createJob, updateJob } from '../../lib/job-store';
+import {
+  createMercadoPagoPreference,
+  MercadoPagoIntegrationError,
+} from '../../lib/mercadopago';
 import { SupabaseBackendError } from '../../lib/supabase';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -79,19 +82,37 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const job = await createJob({ email, files });
-    const payment = await createMercadoPagoPreference({ jobId: job.id, email });
+    const payment = await createMercadoPagoPreference({ jobId: job.id, email: job.email });
+    const updatedJob = await updateJob(job.id, {
+      mercadopagoPreferenceId: payment.id,
+      paymentUrl: payment.initPoint,
+      externalReference: job.id,
+      errorMessage: null,
+    });
+
+    if (!updatedJob) {
+      throw new Error('No se pudo guardar la preferencia del job.');
+    }
 
     return new Response(JSON.stringify({
-      ok: true,
       jobId: job.id,
-      paymentUrl: payment.init_point,
-      paymentId: payment.id,
-      mocked: payment.mocked,
+      paymentUrl: payment.initPoint,
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
+    if (error instanceof MercadoPagoIntegrationError) {
+      console.error(`[create-job] ${error.code}`);
+      return new Response(JSON.stringify({
+        ok: false,
+        error: 'No se pudo iniciar el pago con Mercado Pago.',
+      }), {
+        status: error.statusCode,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     if (error instanceof SupabaseBackendError) {
       const diagnostic = import.meta.env.DEV && error.diagnostic ? `; provider=${error.diagnostic}` : '';
       console.error(`[create-job] ${error.code}: ${error.message}${diagnostic}`);

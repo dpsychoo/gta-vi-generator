@@ -55,6 +55,14 @@ export function getMercadoPagoWebhookSecret() {
   return getOptionalServerEnv('MERCADOPAGO_WEBHOOK_SECRET');
 }
 
+export function getJobCurrency() {
+  return getOptionalServerEnv('JOB_CURRENCY')?.trim();
+}
+
+export function getJobPrice() {
+  return getOptionalServerEnv('JOB_PRICE')?.trim();
+}
+
 export function getResendApiKey() {
   return getOptionalServerEnv('RESEND_API_KEY')?.trim();
 }
