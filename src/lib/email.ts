@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { decryptJobAccessToken } from './job-access';
 import { getJob, updateJob } from './job-store';
 import { getAppBaseUrl, getResendApiKey, getResendFromEmail } from './server/env';
 
@@ -13,13 +14,21 @@ function escapeHtml(value: string) {
     .replaceAll("'", '&#39;');
 }
 
-function getResultUrl(jobId: string) {
+function getResultUrl(job: { id: string; accessTokenEncrypted?: string | null }) {
+  if (!job.accessTokenEncrypted) {
+    throw new Error('El job no tiene capability cifrada.');
+  }
+
+  const accessToken = decryptJobAccessToken(job.accessTokenEncrypted);
   const baseUrl = new URL(getAppBaseUrl());
   if (baseUrl.protocol !== 'http:' && baseUrl.protocol !== 'https:') {
     throw new Error('APP_BASE_URL inválida');
   }
 
-  return new URL(`/resultado?jobId=${encodeURIComponent(jobId)}`, baseUrl).toString();
+  const resultUrl = new URL('/resultado', baseUrl);
+  resultUrl.searchParams.set('jobId', job.id);
+  resultUrl.searchParams.set('token', accessToken);
+  return resultUrl.toString();
 }
 
 function getEmailHtml(resultUrl: string) {
@@ -63,7 +72,7 @@ export async function sendJobResultEmail(jobId: string) {
       throw new Error('Resend no está configurado');
     }
 
-    const resultUrl = getResultUrl(job.id);
+    const resultUrl = getResultUrl(job);
     const resend = new Resend(apiKey);
     const { error } = await resend.emails.send({
       from: fromEmail,

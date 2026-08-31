@@ -29,6 +29,8 @@ export interface JobOriginalFile {
 export interface JobRecord {
   id: string;
   email: string;
+  accessTokenHash?: string | null;
+  accessTokenEncrypted?: string | null;
   status: JobStatus;
   paymentStatus?: PaymentStatus;
   paymentId?: string | null;
@@ -94,6 +96,8 @@ function mapJobRow(row: Record<string, any>): JobRecord {
   return {
     id: row.id,
     email: row.email,
+    accessTokenHash: row.access_token_hash,
+    accessTokenEncrypted: row.access_token_encrypted,
     status: row.status,
     paymentStatus: row.payment_status,
     paymentId: row.payment_id,
@@ -114,7 +118,17 @@ function mapJobRow(row: Record<string, any>): JobRecord {
   };
 }
 
-export async function createJob({ email, files }: { email: string; files: File[] }) {
+export async function createJob({
+  email,
+  files,
+  accessTokenHash,
+  accessTokenEncrypted,
+}: {
+  email: string;
+  files: File[];
+  accessTokenHash: string;
+  accessTokenEncrypted: string;
+}) {
   if (isSupabaseConfigured()) {
     const supabase = getSupabaseAdmin();
     const jobId = crypto.randomUUID();
@@ -132,6 +146,8 @@ export async function createJob({ email, files }: { email: string; files: File[]
     const payload = {
       id: jobId,
       email,
+      access_token_hash: accessTokenHash,
+      access_token_encrypted: accessTokenEncrypted,
       status: 'pending_payment',
       payment_status: 'pending',
       payment_id: null,
@@ -193,6 +209,8 @@ export async function createJob({ email, files }: { email: string; files: File[]
   const job: JobRecord = {
     id: jobId,
     email,
+    accessTokenHash,
+    accessTokenEncrypted,
     status: 'pending_payment',
     paymentStatus: 'pending',
     createdAt: now,

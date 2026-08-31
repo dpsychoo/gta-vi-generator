@@ -74,3 +74,7 @@ export function getResendFromEmail() {
 export function getAppBaseUrl() {
   return getOptionalServerEnv('APP_BASE_URL')?.trim() || 'http://localhost:4321';
 }
+
+export function getJobAccessTokenEncryptionKey() {
+  return getOptionalServerEnv('JOB_ACCESS_TOKEN_ENCRYPTION_KEY');
+}

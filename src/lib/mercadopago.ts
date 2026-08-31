@@ -212,15 +212,21 @@ async function requestMercadoPago<T>(
 export async function createMercadoPagoPreference({
   jobId,
   email,
+  accessToken: jobAccessToken,
 }: {
   jobId: string;
   email: string;
+  accessToken: string;
 }): Promise<MercadoPagoPreference> {
   if (!UUID_PATTERN.test(jobId)) {
     throw new MercadoPagoIntegrationError('MERCADOPAGO_INVALID_JOB_ID', 'El jobId no es válido.', 400);
   }
+  if (!jobAccessToken) {
+    throw new MercadoPagoIntegrationError('MERCADOPAGO_ACCESS_TOKEN_MISSING', 'El token del job no es válido.', 400);
+  }
 
   const { accessToken, appBaseUrl, currency, price } = getExpectedJobPaymentConfig();
+  const resultUrl = `${appBaseUrl}/resultado?jobId=${encodeURIComponent(jobId)}&token=${encodeURIComponent(jobAccessToken)}`;
   const response = await requestMercadoPago<JsonRecord>('/checkout/preferences', accessToken, {
     method: 'POST',
     headers: {
@@ -239,9 +245,9 @@ export async function createMercadoPagoPreference({
       payer: { email },
       external_reference: jobId,
       back_urls: {
-        success: `${appBaseUrl}/resultado?jobId=${jobId}&payment=success`,
-        pending: `${appBaseUrl}/resultado?jobId=${jobId}&payment=pending`,
-        failure: `${appBaseUrl}/resultado?jobId=${jobId}&payment=failure`,
+        success: `${resultUrl}&payment=success`,
+        pending: `${resultUrl}&payment=pending`,
+        failure: `${resultUrl}&payment=failure`,
       },
       auto_return: 'approved',
     }),

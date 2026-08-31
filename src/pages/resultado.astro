@@ -4,6 +4,7 @@ import resultFondo from '../assets/resultFondo.avif';
 
 const { searchParams } = Astro.url;
 const jobId = searchParams.get('jobId');
+const accessToken = searchParams.get('token');
 ---
 
 <Layout>
@@ -15,7 +16,7 @@ const jobId = searchParams.get('jobId');
       </div>
 
       <div class="result-status" id="statusPanel">
-        {jobId ? 'Revisando tu pedido...' : 'Falta el identificador del trabajo.'}
+        {jobId && accessToken ? 'Revisando tu pedido...' : 'Resultado no disponible'}
       </div>
 
       <div class="result-image-wrap" id="imageWrap" hidden>
@@ -30,6 +31,7 @@ const jobId = searchParams.get('jobId');
 
   <script is:inline>
     const queryJobId = new URLSearchParams(window.location.search).get('jobId');
+    const queryAccessToken = new URLSearchParams(window.location.search).get('token');
     const statusPanel = document.getElementById('statusPanel');
     const imageWrap = document.getElementById('imageWrap');
     const imageEl = document.getElementById('resultImage');
@@ -81,9 +83,9 @@ const jobId = searchParams.get('jobId');
     }
 
     function showCompletedResult() {
-      if (!queryJobId) return;
+      if (!queryJobId || !queryAccessToken) return;
 
-      const imageUrl = `/api/image?jobId=${encodeURIComponent(queryJobId)}`;
+      const imageUrl = `/api/image?jobId=${encodeURIComponent(queryJobId)}&token=${encodeURIComponent(queryAccessToken)}`;
       imageWrap.hidden = true;
       downloadBtn.hidden = true;
 
@@ -131,12 +133,12 @@ const jobId = searchParams.get('jobId');
     }
 
     async function poll() {
-      if (!queryJobId || pollingStopped || requestInFlight) return;
+      if (!queryJobId || !queryAccessToken || pollingStopped || requestInFlight) return;
 
       requestInFlight = true;
 
       try {
-        const res = await fetch(`/api/job-status?jobId=${queryJobId}`);
+        const res = await fetch(`/api/job-status?jobId=${encodeURIComponent(queryJobId)}&token=${encodeURIComponent(queryAccessToken)}`);
         if (!res.ok) {
           throw new Error('No se pudo consultar el job');
         }
@@ -151,7 +153,7 @@ const jobId = searchParams.get('jobId');
       }
     }
 
-    if (queryJobId) {
+    if (queryJobId && queryAccessToken) {
       poll();
     }
   </script>

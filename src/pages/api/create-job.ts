@@ -1,5 +1,10 @@
 import type { APIRoute } from 'astro';
 import sharp from 'sharp';
+import {
+  encryptJobAccessToken,
+  generateJobAccessToken,
+  hashJobAccessToken,
+} from '../../lib/job-access';
 import { createJob, updateJob } from '../../lib/job-store';
 import {
   createMercadoPagoPreference,
@@ -112,8 +117,18 @@ export const POST: APIRoute = async ({ request }) => {
       }
     }
 
-    const job = await createJob({ email, files });
-    const payment = await createMercadoPagoPreference({ jobId: job.id, email: job.email });
+    const accessToken = generateJobAccessToken();
+    const job = await createJob({
+      email,
+      files,
+      accessTokenHash: hashJobAccessToken(accessToken),
+      accessTokenEncrypted: encryptJobAccessToken(accessToken),
+    });
+    const payment = await createMercadoPagoPreference({
+      jobId: job.id,
+      email: job.email,
+      accessToken,
+    });
     const updatedJob = await updateJob(job.id, {
       mercadopagoPreferenceId: payment.id,
       paymentUrl: payment.initPoint,

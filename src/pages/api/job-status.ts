@@ -1,32 +1,39 @@
 import type { APIRoute } from 'astro';
-import { getJob, getJobResultSignedUrl } from '../../lib/job-store';
+import { verifyJobAccess } from '../../lib/job-access';
+import { getJob } from '../../lib/job-store';
 
 export const prerender = false;
 
 export const GET: APIRoute = async ({ url }) => {
-  const jobId = url.searchParams.get('jobId');
+  const jobId = url.searchParams.get('jobId')?.trim() || '';
+  const accessToken = url.searchParams.get('token');
+  const unavailable = () => new Response(JSON.stringify({ error: 'Resultado no disponible' }), {
+    status: 404,
+    headers: { 'Content-Type': 'application/json' },
+  });
 
-  if (!jobId) {
-    return new Response(JSON.stringify({ error: 'jobId requerido' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  if (!jobId || !accessToken) {
+    return unavailable();
   }
 
-  const job = await getJob(jobId);
+  let job;
+  try {
+    job = await getJob(jobId);
+  } catch {
+    return unavailable();
+  }
 
-  if (!job) {
-    return new Response(JSON.stringify({ error: 'Job no encontrado' }), {
-      status: 404,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  if (!job || !verifyJobAccess(job, accessToken)) {
+    return unavailable();
   }
 
   const safePayload = {
     id: job.id,
     status: job.status,
     payment_status: job.paymentStatus,
-    resultUrl: job.status === 'completed' ? await getJobResultSignedUrl(job) || `${process.env.APP_BASE_URL || 'http://localhost:4321'}/api/image?path=${encodeURIComponent(job.outputImagePath || job.generatedImage || '')}` : null,
+    resultUrl: job.status === 'completed'
+      ? `/api/image?jobId=${encodeURIComponent(job.id)}&token=${encodeURIComponent(accessToken)}`
+      : null,
     error: job.status === 'failed' ? (job.errorMessage || 'La generación falló') : null,
   };
 
