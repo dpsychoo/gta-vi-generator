@@ -1,0 +1,110 @@
+---
+import { Image } from 'astro:assets';
+import viLogo from '../assets/vi.webp';
+---
+
+<section class="generator-section" id="generator-section" aria-label="Generador de imágenes">
+  <div class="generator-glow generator-glow-left"></div>
+  <div class="generator-glow generator-glow-right"></div>
+
+  <div class="generator-panel">
+    <div class="generator-topline">Genera tu imagen</div>
+
+    <div class="generator-header">
+      <span class="generator-kicker">GTA VI</span>
+      <div class="style-badge">
+        <Image src={viLogo} alt="GTA VI Logo" class="style-badge-logo" loading="eager" />
+        <span>Estilo GTA VI</span>
+      </div>
+    </div>
+
+    <form id="generator-form" class="generator-form" method="post" enctype="multipart/form-data">
+      <label class="upload-field" for="image-upload">
+        <span class="upload-icon">+</span>
+        <span>Adjuntar imágenes</span>
+        <small>Hasta 2 imágenes</small>
+      </label>
+      <input id="image-upload" type="file" name="images" accept="image/*" multiple hidden />
+      <div id="file-list" class="file-list">Sin archivos seleccionados</div>
+
+      <label class="input-wrap" for="email-input">
+        <span class="input-icon">✉</span>
+        <input id="email-input" name="email" type="email" placeholder="Ingresa tu Email" required />
+      </label>
+
+      <button type="submit" class="generate-button">
+  <span class="generate-button__main">Generar US$3</span>
+  <span class="generate-button__sub">Cobro: $2.990 CLP</span>
+</button>
+
+    </form>
+  </div>
+</section>
+
+<script is:inline>
+  const fileInput = document.getElementById('image-upload');
+  const fileList = document.getElementById('file-list');
+  const form = document.getElementById('generator-form');
+  const generatorSection = document.getElementById('generator-section');
+
+  if (generatorSection) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            generatorSection.classList.add('is-visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.25 }
+    );
+
+    observer.observe(generatorSection);
+  }
+
+  if (fileInput && fileList) {
+    fileInput.addEventListener('change', (event) => {
+      const files = Array.from(event.target.files || []);
+      fileList.textContent = files.length
+        ? files.map((file) => file.name).join(', ')
+        : 'Sin archivos seleccionados';
+    });
+  }
+
+  if (form) {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const files = Array.from(fileInput.files || []);
+      const email = document.getElementById('email-input')?.value?.trim() || '';
+
+      if (files.length < 1 || files.length > 2) {
+        fileList.textContent = 'Debes adjuntar entre 1 y 2 imágenes';
+        return;
+      }
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        document.getElementById('email-input').focus();
+        return;
+      }
+
+      const payload = new FormData();
+      payload.append('email', email);
+      files.forEach((file) => payload.append('images', file));
+
+      const response = await fetch('/api/create-job', {
+        method: 'POST',
+        body: payload,
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.paymentUrl) {
+        fileList.textContent = data.error || 'No se pudo iniciar el pago';
+        return;
+      }
+
+      window.location.href = data.paymentUrl;
+    });
+  }
+</script>

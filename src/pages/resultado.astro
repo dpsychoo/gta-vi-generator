@@ -1,0 +1,280 @@
+---
+import Layout from '../layouts/Layout.astro';
+import resultFondo from '../assets/resultFondo.avif';
+
+const { searchParams } = Astro.url;
+const jobId = searchParams.get('jobId');
+---
+
+<Layout>
+  <main class="result-shell" style={`--result-bg: url("${resultFondo.src}")`}>
+    <div class="result-card">
+      <div class="result-header">
+        <span class="eyebrow">GTA VI</span>
+        <h1>Resultado</h1>
+      </div>
+
+      <div class="result-status" id="statusPanel">
+        {jobId ? 'Revisando tu pedido...' : 'Falta el identificador del trabajo.'}
+      </div>
+
+      <div class="result-image-wrap" id="imageWrap" hidden>
+        <img id="resultImage" alt="Imagen generada" />
+      </div>
+
+      <div class="result-actions">
+        <button id="downloadBtn" class="download-btn" type="button" hidden>Descargar imagen</button>
+      </div>
+    </div>
+  </main>
+
+  <script is:inline>
+    const queryJobId = new URLSearchParams(window.location.search).get('jobId');
+    const statusPanel = document.getElementById('statusPanel');
+    const imageWrap = document.getElementById('imageWrap');
+    const imageEl = document.getElementById('resultImage');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    const statusLabels = {
+      pending_payment: 'Pendiente de pago',
+      paid: 'Pago confirmado',
+      processing: 'Creando tu imagen...',
+      completed: 'Imagen lista',
+      failed: 'Hubo un problema'
+    };
+
+    function hideResult() {
+      imageWrap.hidden = true;
+      downloadBtn.hidden = true;
+      imageEl.removeAttribute('src');
+    }
+
+    function showCompletedResult() {
+      if (!queryJobId) return;
+
+      const imageUrl = `/api/image?jobId=${encodeURIComponent(queryJobId)}`;
+      imageWrap.hidden = true;
+      downloadBtn.hidden = true;
+
+      imageEl.onload = () => {
+        imageWrap.hidden = false;
+        downloadBtn.hidden = false;
+      };
+
+      imageEl.onerror = () => {
+        hideResult();
+        statusPanel.textContent = 'Imagen lista, pero la vista previa no está disponible';
+      };
+
+      imageEl.src = imageUrl;
+      downloadBtn.onclick = () => {
+        const link = document.createElement('a');
+        link.href = imageUrl;
+        link.download = 'gta-vi-result.png';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      };
+    }
+
+    async function triggerMockApprovedGeneration() {
+      if (!queryJobId) return;
+      try {
+        const res = await fetch('/api/generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId: queryJobId, paymentStatus: 'approved', mockApproved: true }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          console.warn('mock payment not accepted', data);
+        }
+      } catch (error) {
+        console.warn('mock generation failed', error);
+      }
+    }
+
+    async function poll() {
+      if (!queryJobId) return;
+
+      try {
+        const res = await fetch(`/api/job-status?jobId=${queryJobId}`);
+        if (!res.ok) {
+          throw new Error('No se pudo consultar el job');
+        }
+
+        const job = await res.json();
+
+        statusPanel.textContent = statusLabels[job.status] || job.status || 'Revisando...';
+
+        if (job.status === 'completed') {
+          showCompletedResult();
+          return;
+        }
+
+        if (job.status === 'failed') {
+          hideResult();
+          statusPanel.textContent = 'No pudimos completar la generación';
+          return;
+        }
+
+        if (job.status === 'pending_payment' || job.status === 'paid' || job.status === 'processing') {
+          hideResult();
+          setTimeout(poll, 2500);
+        }
+      } catch (error) {
+        statusPanel.textContent = 'No pudimos consultar el estado de tu pedido';
+      }
+    }
+
+    if (queryJobId) {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('mockApproved') === '1') {
+        triggerMockApprovedGeneration();
+      }
+      poll();
+    }
+  </script>
+</Layout>
+
+<style>
+  :root {
+    --bg: #05070d;
+    --panel: rgba(15, 18, 24, 0.88);
+    --panel-border: rgba(255,255,255,0.12);
+    --text: #edf2ff;
+    --muted: #aab7d0;
+    --accent: #f7c65c;
+    --accent-2: #ff6b6b;
+  }
+
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: radial-gradient(circle at top, #171c24 0%, #05070d 55%, #020407 100%);
+    color: var(--text);
+    font-family: 'Poppins', sans-serif;
+  }
+
+  .result-shell {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 80px 20px;
+  }
+
+  .result-card {
+    width: min(720px, 100%);
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    box-shadow: 0 20px 80px rgba(0,0,0,.45);
+    border-radius: 28px;
+    padding: 28px;
+  }
+
+  .result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding-bottom: 16px;
+  }
+
+  .eyebrow {
+    color: var(--accent);
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    font-size: 20px;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(1.9rem, 3vw, 2.8rem);
+  }
+
+  .result-status {
+    color: var(--muted);
+    font-size: 1.05rem;
+    margin-bottom: 22px;
+  }
+
+  .result-image-wrap {
+    margin-top: 18px;
+    background: #0a0d12;
+    border-radius: 20px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+
+  #resultImage {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 70vh;
+    object-fit: contain;
+    background: #080b10;
+  }
+
+  .result-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 22px;
+  }
+
+  .download-btn {
+    background: linear-gradient(135deg, #d63ca3 0%, #f7665c 0%, #632bff 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: 999px;
+    padding: 0.9rem 1.5rem;
+    font-weight: 800;
+    cursor: pointer;
+
+    
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 15px;
+    -webkit-text-stroke: 0.25px #0c0455;
+    text-transform: uppercase;
+    text-shadow:
+        -2px 0 2px rgba(80, 180, 255, 0.65),
+         2px 0 2px rgba(255, 150, 80, 0.45),
+         0 0 8px rgba(255, 255, 255, 0.15);
+         transition: 
+        transform 0.25s ease,
+        background 0.25s ease,
+        box-shadow 0.25s ease;
+
+  }
+
+
+
+
+
+.result-shell {
+  min-height: 100vh;
+  position: relative;
+
+  background-image:
+    linear-gradient(
+      rgba(0, 0, 0, 0.35),
+      rgba(0, 0, 0, 0.35)
+    ),
+    var(--result-bg);
+
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+
+  
+</style>

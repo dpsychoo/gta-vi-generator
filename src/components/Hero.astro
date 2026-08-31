@@ -1,0 +1,62 @@
+---
+import HeroAnimation from './HeroAnimation';
+import '../styles/global.css';
+import '../styles/hero.css';
+import { Image } from 'astro:assets';
+import fondoOriginal from '../assets/fondo-original.png';
+import heroGt6SinFondo from '../assets/hero-gt6-sin-fondo.png';
+import viLogo from '../assets/vi.webp';
+import rockstarLogo from '../assets/rockstar-logo.svg';
+import trailerLogo from '../assets/trailer-logo.svg';
+---
+
+<div class="header">
+  <Image src={rockstarLogo} alt="Rockstar Games" class="rockstar-logo" loading="eager" />
+  <div class="menu-btn">
+    <div class="g0abma6"></div>
+    <div class="g0abma6"></div>
+  </div>
+</div>
+
+
+<div class="hero-wrapper">  
+  <div class="hero-container">
+    <Image src={fondoOriginal} class="background-image" alt="GTA VI background" loading="eager" />
+    <Image src={heroGt6SinFondo} class="characters-image" alt="GTA VI characters" loading="eager" />
+    <div class="reveal-text">
+      grand<br><span class="theft-offset">theft</span><br><span class="auto-offset">auto</span>
+    </div>       
+    <div class="text-background"></div>    
+    <div class="text-mask-container">      
+      <div class="text-mask-wrapper">        
+        <div class="logo-date-container">
+          <div class="text-mask">grand<br><span class="the-highlight theft-offset">theft</span><br><span class="auto-offset">auto</span></div>
+          <div class="date-mask-container">
+            <div class="release-date">
+              Generar<br>imagen GTA VI<br>en 1 CLICK!
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="vi-logo-animated-container">
+      <Image src={viLogo} alt="GTA VI Logo" class="vi-logo-animated" loading="eager" />
+    </div>
+    <div class="trailer-button-container">
+      <div class="trailer-button">
+        <div class="trailer-svg-container">
+          <Image src={trailerLogo} alt="Trailer Logo" width="120" height="120" class="trailer-svg-image" loading="eager" />
+          <span class="trailer-text">Powered by SGODX_</span>
+        </div>
+      </div>
+    </div>
+    
+  </div>
+</div>
+
+<div id="loading-overlay" class="loading-overlay">
+  <div class="spinner"></div>
+</div>
+
+<HeroAnimation client:load />

@@ -1,0 +1,242 @@
+import { useEffect } from "react";
+
+export default function HeroAnimation() {
+  useEffect(() => {
+    let lenis: any;
+    let isMounted = true;
+
+    const initAnimations = async () => {
+      const [{ gsap }, { ScrollTrigger }] = await Promise.all([
+        import("gsap"),
+        import("gsap/ScrollTrigger"),
+      ]);
+
+      if (!isMounted) {
+        return;
+      }
+
+      gsap.registerPlugin(ScrollTrigger);
+
+      const LenisModule = await import("lenis");
+      const Lenis = LenisModule.default || LenisModule;
+      lenis = new Lenis({
+        duration: 1.2,
+        easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+        smoothWheel: true,
+      });
+
+    function raf(time: number) {
+      lenis.raf(time);
+      requestAnimationFrame(raf);
+    }
+
+    requestAnimationFrame(raf);
+
+    gsap.set(".text-mask-container", {
+      opacity: 0,
+    });
+
+    gsap.set(".text-background", {
+      opacity: 0,
+    });
+
+    gsap.set(".release-date", {
+      opacity: 0,
+    });
+    gsap.set(".text-mask", {
+      scale: 3.5,
+      opacity: 0,
+    });
+    gsap.set(".date-mask-container", {
+      height: 0,
+    });
+
+    gsap.set(".release-date", {
+      opacity: 0,
+      y: 150,
+    });
+    gsap.set(".background-image", {
+      scale: 1.2,
+    });
+
+    gsap.set(".trailer-button-container", {
+      opacity: 1,
+    });
+
+    const tl = gsap.timeline({
+      scrollTrigger: {
+        trigger: ".hero-wrapper",
+        start: "top top",
+        end: "+=100%",
+        scrub: true,
+        pin: true,
+        pinSpacing: true,
+      },
+    });
+
+    // 1. Iniciar con el texto grande y visible en la parte superior
+    gsap.set(".reveal-text", {
+      scale: 1,
+      opacity: 1,
+    });
+
+    tl.to(
+      [".reveal-text", ".trailer-button-container"],
+      {
+        opacity: 0,
+        duration: 1,
+        ease: "power2.inOut",
+      },
+      ">"
+    );
+
+    tl.to(
+      ".text-mask-container",
+      {
+        opacity: 3,
+        duration: 1,
+        ease: "power2.inOut",
+      },
+      ">"
+    );
+
+    tl.fromTo(
+      ".text-mask",
+      {
+        scale: 3.5,
+        opacity: 1,
+        y: 0,
+      },
+      {
+        scale: 1,
+        opacity: 1,
+        y: 0,
+        duration: 1.5,
+        ease: "power3.out",
+      },
+      "<"
+    );
+
+    tl.fromTo(
+      ".background-image",
+      {
+        scale: 1.5,
+      },
+      {
+        scale: 1,
+        duration: 1.5,
+        ease: "power3.out",
+      },
+      "<"
+    );
+
+    tl.to(
+      {},
+      {
+        duration: 0.5,
+      },
+      ">"
+    );
+    tl.to(
+      ".text-mask",
+      {
+        scale: 0.25,
+        y: "-25vh",
+        x: 0,
+        duration: 1.2,
+        ease: "power2.inOut",
+      },
+      ">"
+    );
+
+    tl.to(
+      ".background-image",
+      {
+        scale: 0,
+        y: "-10vh",
+        duration: 1.5,
+        ease: "power2.inOut",
+      },
+      "<"
+    );
+
+    tl.to(
+      ".date-mask-container",
+      {
+        height: "50vh",
+        duration: 1.2,
+        ease: "power1.inOut",
+      },
+      "<0.2"
+    );
+
+    tl.to(
+      ".release-date",
+      {
+        y: 0,
+        opacity: 1,
+        duration: 1.5,
+        ease: "power2.out",
+      },
+      "<0.7"
+    );
+
+    tl.to(
+      ".text-mask",
+      {
+        opacity: 0,
+        scale: 0,
+        y: "-30vh",
+        duration: 0.8,
+        ease: "power3.out",
+      },
+      "<0.2"
+    );
+    tl.to(
+      ".vi-logo-animated-container",
+      {
+        opacity: 1,
+        scale: 1,
+        y: "-5vh",
+        duration: 1.5,
+        ease: "elastic.out(1, 0.4)",
+      },
+      "<0.3"
+    );
+
+    tl.set(
+      ".trailer-button-container",
+      {
+        opacity: 0,
+        display: "none",
+      },
+      "<"
+    );
+
+    const hideLoading = () => {
+      const overlay = document.getElementById("loading-overlay");
+      if (overlay) {
+        overlay.style.opacity = "0";
+        setTimeout(() => {
+          overlay.style.display = "none";
+        }, 400);
+      }
+    };
+    window.addEventListener("load", hideLoading);
+    setTimeout(hideLoading, 1200);
+
+      return () => {
+        isMounted = false;
+        ScrollTrigger.getAll().forEach((t: any) => t.kill());
+        lenis?.destroy();
+        window.removeEventListener("load", hideLoading);
+      };
+    };
+
+    initAnimations();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+}

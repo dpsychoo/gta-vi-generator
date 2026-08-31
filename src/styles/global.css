@@ -1,0 +1,80 @@
+@font-face {
+  font-family: "GTAFont";
+  src: url("/fonts/Pricedown\ Bl.otf");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 40px;
+  display: flex;
+  justify-content: space-between;
+  z-index: 100;
+}
+
+.rockstar-logo {
+  height: 20px;
+  margin-left: 20px;
+  filter: drop-shadow(0px 0px 2px rgba(255, 255, 255, 0.5));
+}
+
+.menu-btn {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  margin-right: 100px;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .header {
+    padding: 30px;
+  }
+
+  .rockstar-logo {
+    height: 18px;
+    margin-left: 10px;
+  }
+
+  .menu-btn {
+    margin-right: 70px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header {
+    padding: 20px;
+  }
+
+  .rockstar-logo {
+    height: 16px;
+    margin-left: 5px;
+  }
+
+  .menu-btn {
+    margin-right: 45px;
+  }
+}
+
+.g0abma6 {
+  height: 6px;
+  width: 25px;
+  background-color: white;
+  transition: all 0.3s ease;
+}
+
+.scroll-indicator {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: white;
+  font-size: 1.5rem;
+  opacity: 0.7;
+}

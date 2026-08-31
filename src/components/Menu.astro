@@ -1,0 +1,206 @@
+---
+import MenuAnimation from './MenuAnimation';
+import '../styles/menu.css';
+import { Image } from 'astro:assets';
+import fondoMenu from '../assets/fondo-menu.png';
+import gtaviPs5 from '../assets/gtavips5.webp';
+---
+
+<div class="menu-container">
+  <div class="menu-left-side">
+    <Image src={fondoMenu} alt="Menu Background" class="menu-background-image" loading="eager" />
+  </div>  
+  <div class="menu-right-side">
+    <div class="menu-top-navigation">
+
+<div class="menu-nav-tabs">
+
+  <div class="menu-item active">
+    Reserva el Juego
+  </div>
+
+  <a
+    class="menu-item menu-social-link"
+    href="https://www.instagram.com/sgodx_/"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    Síguenos
+  </a>
+
+  <a
+    class="menu-item menu-social-link"
+    href="https://www.youtube.com/@SGODX_GTA"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    YouTube
+  </a>
+
+  <div class="menu-item">
+    Crear GRATIS
+  </div>
+
+</div>
+
+
+
+    <!--
+      <div class="menu-nav-tabs">
+        <div class="menu-item active">Reserva el Juego</div>
+        <div class="menu-item">Siguenos</div>
+        <div class="menu-item">YouTube</div>
+        <div class="menu-item">Crear GRATIS</div>
+      </div>
+    -->
+
+      <div class="menu-close-btn">
+        <div class="menu-close-line"></div>
+        <div class="menu-close-line"></div>
+      </div>
+    </div>
+    <div class="menu-content">
+      <div class="menu-characters">
+      
+      <div class="menu-content">
+  <div class="menu-characters">
+
+<div class="reservation-layout">
+
+  <div class="reservation-option">
+
+    <a
+      class="character reservation-title-link"
+      href="https://meli.la/2Hc5QTw"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      RESERVAR PARA PS5
+    </a>
+
+    <a
+      class="machbank-discount"
+      href="https://meli.la/2Hc5QTw"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      $10.000 DCTO CON MACHBANK
+    </a>
+
+  </div>
+
+  <div class="game-cover-container">
+
+    <a
+      class="game-cover-link"
+      href="https://meli.la/2Hc5QTw"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <Image
+        src={gtaviPs5}
+        alt="Grand Theft Auto VI para PlayStation 5"
+        class="game-cover"
+        loading="eager"
+      />
+    </a>
+
+  </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!--
+    <div class="reservation-layout">
+
+      <div class="reservation-option">
+        <div class="character">RESERVAR PARA PS5</div>
+
+        <a
+           class="machbank-discount"
+            href="https://meli.la/2Hc5QTw"
+            target="_blank"
+             rel="noopener noreferrer"
+              >
+                $10.000 DCTO CON MACHBANK
+       </a>
+      </div>
+
+      <div class="game-cover-container">
+        <Image
+          src={gtaviPs5}
+          alt="Grand Theft Auto VI para PlayStation 5"
+          class="game-cover"
+          loading="eager"
+        />
+      </div>
+
+    </div>
+
+    -->
+
+  </div>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      <!--
+      <div class="reservation-option">
+        <div class="character">RESERVAR PARA PS5</div>
+
+      <div class="machbank-discount">
+        $10.000 DCTO CON MACHBANK </div>
+              </div>
+          </div>
+      </div>
+     
+        <div class="character">RESERVAR PARA PS5</div>
+        <br>($10.000 dcto con MACHBANK)<br>
+        
+
+        <div class="character">Jason Duval</div>
+        <div class="character">Cal Hampton</div>
+        <div class="character">Raul Batista</div>
+        <div class="character">Real Dimez</div>
+        <div class="character">Brian O'Conner</div>
+        <div class="character">Liam Priest</div>
+        <div class="character">Boobie ike</div>
+        -->
+
+
+
+
+
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<MenuAnimation client:load />
