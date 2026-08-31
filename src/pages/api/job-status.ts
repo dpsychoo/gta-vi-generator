@@ -4,12 +4,16 @@ import { getJob } from '../../lib/job-store';
 
 export const prerender = false;
 
+const privateNoStoreHeaders = {
+  'Cache-Control': 'private, no-store, max-age=0',
+};
+
 export const GET: APIRoute = async ({ url }) => {
   const jobId = url.searchParams.get('jobId')?.trim() || '';
   const accessToken = url.searchParams.get('token');
   const unavailable = () => new Response(JSON.stringify({ error: 'Resultado no disponible' }), {
     status: 404,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...privateNoStoreHeaders },
   });
 
   if (!jobId || !accessToken) {
@@ -39,6 +43,6 @@ export const GET: APIRoute = async ({ url }) => {
 
   return new Response(JSON.stringify(safePayload), {
     status: 200,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...privateNoStoreHeaders },
   });
 };

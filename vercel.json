@@ -1,0 +1,30 @@
+{
+  "headers": [
+    {
+      "source": "/resultado",
+      "headers": [
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Cache-Control", "value": "private, no-store, max-age=0" }
+      ]
+    },
+    {
+      "source": "/resultado/",
+      "headers": [
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Cache-Control", "value": "private, no-store, max-age=0" }
+      ]
+    },
+    {
+      "source": "/api/job-status",
+      "headers": [
+        { "key": "Cache-Control", "value": "private, no-store, max-age=0" }
+      ]
+    },
+    {
+      "source": "/api/image",
+      "headers": [
+        { "key": "Cache-Control", "value": "private, no-store, max-age=0" }
+      ]
+    }
+  ]
+}
