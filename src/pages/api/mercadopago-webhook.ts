@@ -152,6 +152,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     const mappedPaymentStatus = mapMercadoPagoPaymentStatus(payment.status);
     if (mappedPaymentStatus !== 'approved') {
+      console.info(`[mercadopago-webhook] payment_status=${mappedPaymentStatus} generation_skipped`);
       await recordUnapprovedPayment({
         jobId,
         paymentId,

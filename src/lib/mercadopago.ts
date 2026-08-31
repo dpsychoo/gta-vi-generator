@@ -238,7 +238,6 @@ export async function createMercadoPagoPreference({
       ],
       payer: { email },
       external_reference: jobId,
-      notification_url: `${appBaseUrl}/api/mercadopago-webhook`,
       back_urls: {
         success: `${appBaseUrl}/resultado?jobId=${jobId}&payment=success`,
         pending: `${appBaseUrl}/resultado?jobId=${jobId}&payment=pending`,
