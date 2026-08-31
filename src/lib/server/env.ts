@@ -67,6 +67,10 @@ export function getResendApiKey() {
   return getOptionalServerEnv('RESEND_API_KEY')?.trim();
 }
 
+export function getResendFromEmail() {
+  return getOptionalServerEnv('RESEND_FROM_EMAIL')?.trim();
+}
+
 export function getAppBaseUrl() {
   return getOptionalServerEnv('APP_BASE_URL')?.trim() || 'http://localhost:4321';
 }

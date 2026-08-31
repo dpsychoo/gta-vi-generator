@@ -40,13 +40,44 @@ const jobId = searchParams.get('jobId');
       paid: 'Pago confirmado',
       processing: 'Creando tu imagen...',
       completed: 'Imagen lista',
-      failed: 'Hubo un problema'
+      failed: 'No pudimos generar tu imagen'
     };
+
+    const knownStatuses = ['pending_payment', 'paid', 'processing', 'completed', 'failed', 'error', 'unknown'];
+    let pollingTimer = null;
+    let pollingStopped = false;
+    let requestInFlight = false;
+
+    function setStatus(status, text) {
+      statusPanel.classList.remove(...knownStatuses.map((name) => `status-${name}`));
+      statusPanel.classList.add(`status-${status}`);
+      statusPanel.dataset.status = status;
+      statusPanel.textContent = text;
+    }
 
     function hideResult() {
       imageWrap.hidden = true;
       downloadBtn.hidden = true;
       imageEl.removeAttribute('src');
+      imageEl.onload = null;
+      imageEl.onerror = null;
+      downloadBtn.onclick = null;
+    }
+
+    function stopPolling() {
+      pollingStopped = true;
+      if (pollingTimer !== null) {
+        window.clearTimeout(pollingTimer);
+        pollingTimer = null;
+      }
+    }
+
+    function schedulePolling() {
+      if (pollingStopped || pollingTimer !== null) return;
+      pollingTimer = window.setTimeout(() => {
+        pollingTimer = null;
+        poll();
+      }, 2500);
     }
 
     function showCompletedResult() {
@@ -62,8 +93,9 @@ const jobId = searchParams.get('jobId');
       };
 
       imageEl.onerror = () => {
-        hideResult();
-        statusPanel.textContent = 'Imagen lista, pero la vista previa no está disponible';
+        imageWrap.hidden = true;
+        downloadBtn.hidden = true;
+        setStatus('completed', 'Imagen lista, pero la vista previa no está disponible');
       };
 
       imageEl.src = imageUrl;
@@ -77,8 +109,31 @@ const jobId = searchParams.get('jobId');
       };
     }
 
+    function applyJobState(job) {
+      const status = typeof job?.status === 'string' ? job.status : 'unknown';
+      const label = statusLabels[status] || 'Revisando tu pedido...';
+      setStatus(status, label);
+
+      if (status === 'completed') {
+        stopPolling();
+        showCompletedResult();
+        return;
+      }
+
+      if (status === 'failed') {
+        stopPolling();
+        hideResult();
+        return;
+      }
+
+      hideResult();
+      schedulePolling();
+    }
+
     async function poll() {
-      if (!queryJobId) return;
+      if (!queryJobId || pollingStopped || requestInFlight) return;
+
+      requestInFlight = true;
 
       try {
         const res = await fetch(`/api/job-status?jobId=${queryJobId}`);
@@ -87,26 +142,12 @@ const jobId = searchParams.get('jobId');
         }
 
         const job = await res.json();
-
-        statusPanel.textContent = statusLabels[job.status] || job.status || 'Revisando...';
-
-        if (job.status === 'completed') {
-          showCompletedResult();
-          return;
-        }
-
-        if (job.status === 'failed') {
-          hideResult();
-          statusPanel.textContent = 'No pudimos completar la generación';
-          return;
-        }
-
-        if (job.status === 'pending_payment' || job.status === 'paid' || job.status === 'processing') {
-          hideResult();
-          setTimeout(poll, 2500);
-        }
-      } catch (error) {
-        statusPanel.textContent = 'No pudimos consultar el estado de tu pedido';
+        applyJobState(job);
+      } catch {
+        setStatus('error', 'No pudimos consultar el estado de tu pedido');
+        schedulePolling();
+      } finally {
+        requestInFlight = false;
       }
     }
 

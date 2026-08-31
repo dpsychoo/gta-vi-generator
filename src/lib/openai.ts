@@ -1,4 +1,5 @@
 import { getJob, updateJob, type JobRecord, type JobStatus } from './job-store';
+import { sendJobResultEmail } from './email';
 import {
   getMasterStyleReferencePath,
   getSupabaseAdmin,
@@ -409,7 +410,7 @@ async function generateResultImage(
     const outputPath = `${jobId}/result.png`;
     await supabaseUpload(getSupabaseGeneratedBucket(), outputPath, outputBuffer, 'image/png');
 
-    await updateJob(jobId, {
+    const completedJob = await updateJob(jobId, {
       status: 'completed',
       outputImagePath: outputPath,
       errorMessage: null,
@@ -426,6 +427,13 @@ async function generateResultImage(
         outputGeneratedAt: new Date().toISOString(),
       },
     });
+
+    if (!completedJob) {
+      throw new DevelopmentGenerationError('No se pudo confirmar el resultado generado.', { statusCode: 500 });
+    }
+
+    // El email es secundario: un fallo de Resend nunca revierte el status completed.
+    await sendJobResultEmail(jobId);
 
     return {
       jobId,
