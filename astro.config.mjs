@@ -29,6 +29,9 @@ function listLocalDataFiles(directory) {
 // https://astro.build/config
 export default defineConfig({
   output: 'static',
+  security: {
+    checkOrigin: false,
+  },
   adapter: vercel({
     maxDuration: 300,
     // Local fallback data can contain customer uploads and must never ship in a function bundle.

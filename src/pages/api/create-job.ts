@@ -5,10 +5,33 @@ import {
   createMercadoPagoPreference,
   MercadoPagoIntegrationError,
 } from '../../lib/mercadopago';
+import { getAppBaseUrl } from '../../lib/server/env';
 import { SupabaseBackendError } from '../../lib/supabase';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_FORMATS = ['jpeg', 'png', 'webp'];
+const GENERIC_PAYMENT_ERROR = 'No se pudo iniciar el pago. Inténtalo nuevamente.';
+
+function isAllowedRequestOrigin(request: Request) {
+  if (!import.meta.env.PROD) {
+    return true;
+  }
+
+  const requestOriginHeader = request.headers.get('origin');
+  if (!requestOriginHeader) {
+    return false;
+  }
+
+  try {
+    const configuredUrl = new URL(getAppBaseUrl());
+    const requestUrl = new URL(requestOriginHeader);
+    return configuredUrl.protocol === 'https:'
+      && requestUrl.protocol === 'https:'
+      && requestUrl.origin === configuredUrl.origin;
+  } catch {
+    return false;
+  }
+}
 
 async function validateImageFile(file: File): Promise<{ valid: boolean; error?: string }> {
   // Validar tamaño
@@ -35,14 +58,22 @@ async function validateImageFile(file: File): Promise<{ valid: boolean; error?: 
     }
 
     return { valid: true };
-  } catch (error) {
-    return { valid: false, error: `El archivo ${file.name} no es una imagen válida: ${(error as Error).message}` };
+  } catch {
+    return { valid: false, error: `El archivo ${file.name} no es una imagen válida` };
   }
 }
 
 export const prerender = false;
 
 export const POST: APIRoute = async ({ request }) => {
+  if (!isAllowedRequestOrigin(request)) {
+    console.warn('[create-job] rejected_origin');
+    return new Response(JSON.stringify({ ok: false, error: 'Solicitud no autorizada.' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
     const contentType = request.headers.get('content-type') || '';
     if (!contentType.includes('multipart/form-data') && !contentType.includes('application/x-www-form-urlencoded')) {
@@ -106,7 +137,7 @@ export const POST: APIRoute = async ({ request }) => {
       console.error(`[create-job] ${error.code}`);
       return new Response(JSON.stringify({
         ok: false,
-        error: 'No se pudo iniciar el pago con Mercado Pago.',
+        error: GENERIC_PAYMENT_ERROR,
       }), {
         status: error.statusCode,
         headers: { 'Content-Type': 'application/json' },
@@ -116,15 +147,12 @@ export const POST: APIRoute = async ({ request }) => {
     if (error instanceof SupabaseBackendError) {
       const diagnostic = import.meta.env.DEV && error.diagnostic ? `; provider=${error.diagnostic}` : '';
       console.error(`[create-job] ${error.code}: ${error.message}${diagnostic}`);
-      return new Response(JSON.stringify({ ok: false, error: error.message, code: error.code }), {
+      return new Response(JSON.stringify({ ok: false, error: GENERIC_PAYMENT_ERROR }), {
         status: error.status,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    const message = import.meta.env.DEV
-      ? 'No se pudo crear el job. Revisa el log del servidor.'
-      : 'Error al crear el job';
     const errorName = error instanceof Error ? error.name : typeof error;
     const candidateCode = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
     const safeCode = /^[a-zA-Z0-9_-]{1,32}$/.test(candidateCode) ? candidateCode : 'none';
@@ -136,7 +164,7 @@ export const POST: APIRoute = async ({ request }) => {
     } else {
       console.error('[create-job] unexpected error');
     }
-    return new Response(JSON.stringify({ ok: false, error: message }), {
+    return new Response(JSON.stringify({ ok: false, error: GENERIC_PAYMENT_ERROR }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });

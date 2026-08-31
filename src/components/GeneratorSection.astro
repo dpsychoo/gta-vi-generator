@@ -93,18 +93,24 @@ import viLogo from '../assets/vi.webp';
       payload.append('email', email);
       files.forEach((file) => payload.append('images', file));
 
-      const response = await fetch('/api/create-job', {
-        method: 'POST',
-        body: payload,
-      });
+      const paymentErrorMessage = 'No se pudo iniciar el pago. Inténtalo nuevamente.';
 
-      const data = await response.json();
-      if (!response.ok || !data.paymentUrl) {
-        fileList.textContent = data.error || 'No se pudo iniciar el pago';
-        return;
+      try {
+        const response = await fetch('/api/create-job', {
+          method: 'POST',
+          body: payload,
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.paymentUrl) {
+          fileList.textContent = paymentErrorMessage;
+          return;
+        }
+
+        window.location.assign(data.paymentUrl);
+      } catch {
+        fileList.textContent = paymentErrorMessage;
       }
-
-      window.location.href = data.paymentUrl;
     });
   }
 </script>
