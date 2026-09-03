@@ -19,6 +19,52 @@ const accessToken = searchParams.get('token');
         {jobId && accessToken ? 'Revisando tu pedido...' : 'Resultado no disponible'}
       </div>
 
+      <section class="generation-loader" id="generationLoader" hidden aria-live="polite" aria-busy="true">
+        <div class="generation-loader__wash" aria-hidden="true"></div>
+        <div class="generation-loader__scanlines" aria-hidden="true"></div>
+        <div class="generation-loader__particles" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <div class="generation-loader__content">
+          <div class="generation-loader__vi" aria-hidden="true">VI</div>
+          <div class="generation-loader__kicker">SGODX / VICE CITY LABS</div>
+          <h2>GENERANDO TU IMAGEN</h2>
+          <p class="generation-loader__subtitle">Estamos preparando tu experiencia...</p>
+
+          <div
+            class="generation-loader__progress"
+            id="generationProgress"
+            role="progressbar"
+            aria-label="Progreso visual de generación"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="0"
+            aria-valuetext="Progreso visual, sin tiempo restante estimado"
+          >
+            <div class="generation-loader__progress-track">
+              <div class="generation-loader__progress-bar" id="generationProgressBar"></div>
+            </div>
+            <div class="generation-loader__progress-meta">
+              <span id="generationProgressValue">0%</span>
+              <span>LIVE RENDER</span>
+            </div>
+          </div>
+
+          <p class="generation-loader__stage" id="generationStage" role="status" aria-live="polite">
+            Analizando tus fotografías...
+          </p>
+
+          <div class="generation-loader__email-note">
+            <span class="generation-loader__email-icon" aria-hidden="true">✦</span>
+            <div>
+              <strong>Tu resultado también llegará a tu email</strong>
+              <span>Puedes cerrar esta pestaña si quieres. Te enviaremos un enlace para ver y descargar tu imagen cuando esté lista.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <div class="result-image-wrap" id="imageWrap" hidden>
         <img id="resultImage" alt="Imagen generada" />
       </div>
@@ -26,6 +72,23 @@ const accessToken = searchParams.get('token');
       <div class="result-actions">
         <button id="downloadBtn" class="download-btn" type="button" hidden>Descargar imagen</button>
       </div>
+
+      <section class="sgx-pass-panel" id="sgxPassPanel" hidden aria-live="polite">
+        <div class="sgx-pass-eyebrow">SGX VI PASS ACTIVATED</div>
+        <div class="sgx-pass-code" id="sgxPassCode"></div>
+        <div class="sgx-pass-grid">
+          <div>
+            <span class="sgx-pass-label">ROAD TO VI</span>
+            <strong class="sgx-pass-value" id="sgxPassEligibility"></strong>
+          </div>
+          <div>
+            <span class="sgx-pass-label">PASS STATUS</span>
+            <strong class="sgx-pass-value" id="sgxPassStatus"></strong>
+          </div>
+        </div>
+        <p class="sgx-pass-note">Guarda este código. Volverás a necesitarlo.</p>
+        <p class="sgx-pass-motto">ONE PASS. MULTIPLE MISSIONS.</p>
+      </section>
     </div>
   </main>
 
@@ -33,9 +96,18 @@ const accessToken = searchParams.get('token');
     const queryJobId = new URLSearchParams(window.location.search).get('jobId');
     const queryAccessToken = new URLSearchParams(window.location.search).get('token');
     const statusPanel = document.getElementById('statusPanel');
+    const generationLoader = document.getElementById('generationLoader');
+    const generationProgress = document.getElementById('generationProgress');
+    const generationProgressBar = document.getElementById('generationProgressBar');
+    const generationProgressValue = document.getElementById('generationProgressValue');
+    const generationStage = document.getElementById('generationStage');
     const imageWrap = document.getElementById('imageWrap');
     const imageEl = document.getElementById('resultImage');
     const downloadBtn = document.getElementById('downloadBtn');
+    const sgxPassPanel = document.getElementById('sgxPassPanel');
+    const sgxPassCode = document.getElementById('sgxPassCode');
+    const sgxPassEligibility = document.getElementById('sgxPassEligibility');
+    const sgxPassStatus = document.getElementById('sgxPassStatus');
 
     const statusLabels = {
       pending_payment: 'Pendiente de pago',
@@ -49,12 +121,159 @@ const accessToken = searchParams.get('token');
     let pollingTimer = null;
     let pollingStopped = false;
     let requestInFlight = false;
+    let visualProgressTimer = null;
+    let stageMessagesTimer = null;
+    let loaderExitTimer = null;
+    let visualProgressValue = 0;
+    let stageMessageIndex = 0;
+    let generationLoaderVisible = false;
+
+    const generationStageMessages = [
+      'Analizando tus fotografías...',
+      'Construyendo tu identidad en Vice City...',
+      'Ajustando luces, color y actitud...',
+      'Aplicando el look SGODX...',
+      'Dando los últimos detalles al render...'
+    ];
 
     function setStatus(status, text) {
       statusPanel.classList.remove(...knownStatuses.map((name) => `status-${name}`));
       statusPanel.classList.add(`status-${status}`);
       statusPanel.dataset.status = status;
       statusPanel.textContent = text;
+    }
+
+    function setVisualProgress(value) {
+      visualProgressValue = Math.max(0, Math.min(100, value));
+      const roundedValue = Math.round(visualProgressValue);
+
+      if (generationProgressBar) {
+        generationProgressBar.style.width = `${visualProgressValue}%`;
+      }
+      if (generationProgressValue) {
+        generationProgressValue.textContent = `${roundedValue}%`;
+      }
+      if (generationProgress) {
+        generationProgress.setAttribute('aria-valuenow', String(roundedValue));
+      }
+    }
+
+    function stopVisualProgress() {
+      if (visualProgressTimer !== null) {
+        window.clearTimeout(visualProgressTimer);
+        visualProgressTimer = null;
+      }
+    }
+
+    function startVisualProgress() {
+      if (!generationLoader || visualProgressTimer !== null || visualProgressValue >= 93) return;
+
+      const tick = () => {
+        visualProgressTimer = null;
+        if (!generationLoaderVisible || visualProgressValue >= 93) return;
+
+        const isFast = visualProgressValue < 18;
+        const isMedium = visualProgressValue < 45;
+        const delta = isFast ? 2.8 : isMedium ? 1.4 : visualProgressValue < 70 ? 0.75 : visualProgressValue < 85 ? 0.35 : 0.12;
+        const delay = isFast ? 80 : isMedium ? 130 : visualProgressValue < 70 ? 180 : 260;
+
+        setVisualProgress(Math.min(93, visualProgressValue + delta));
+        visualProgressTimer = window.setTimeout(tick, delay);
+      };
+
+      tick();
+    }
+
+    function stopStageMessages() {
+      if (stageMessagesTimer !== null) {
+        window.clearInterval(stageMessagesTimer);
+        stageMessagesTimer = null;
+      }
+    }
+
+    function startStageMessages() {
+      if (!generationStage || stageMessagesTimer !== null) return;
+
+      stageMessageIndex = 0;
+      generationStage.textContent = generationStageMessages[stageMessageIndex];
+      stageMessagesTimer = window.setInterval(() => {
+        stageMessageIndex = (stageMessageIndex + 1) % generationStageMessages.length;
+        generationStage.classList.remove('is-changing');
+        void generationStage.offsetWidth;
+        generationStage.textContent = generationStageMessages[stageMessageIndex];
+        generationStage.classList.add('is-changing');
+      }, 2800);
+    }
+
+    function showGenerationLoader() {
+      if (!generationLoader) return;
+
+      if (loaderExitTimer !== null) {
+        window.clearTimeout(loaderExitTimer);
+        loaderExitTimer = null;
+        setVisualProgress(0);
+      }
+
+      generationLoaderVisible = true;
+      generationLoader.hidden = false;
+      generationLoader.classList.remove('is-leaving');
+      generationLoader.setAttribute('aria-busy', 'true');
+      statusPanel.hidden = true;
+      startVisualProgress();
+      startStageMessages();
+    }
+
+    function hideGenerationLoader() {
+      stopVisualProgress();
+      stopStageMessages();
+      if (loaderExitTimer !== null) {
+        window.clearTimeout(loaderExitTimer);
+        loaderExitTimer = null;
+      }
+
+      generationLoaderVisible = false;
+      if (generationLoader) {
+        generationLoader.hidden = true;
+        generationLoader.classList.remove('is-leaving');
+        generationLoader.setAttribute('aria-busy', 'false');
+      }
+      statusPanel.hidden = false;
+      setVisualProgress(0);
+    }
+
+    function completeVisualProgress(onComplete) {
+      if (loaderExitTimer !== null) return;
+
+      if (!generationLoader || generationLoader.hidden || !generationLoaderVisible) {
+        statusPanel.hidden = false;
+        onComplete();
+        return;
+      }
+
+      stopVisualProgress();
+      stopStageMessages();
+      generationLoaderVisible = false;
+      setVisualProgress(100);
+      generationLoader.classList.add('is-leaving');
+
+      loaderExitTimer = window.setTimeout(() => {
+        loaderExitTimer = null;
+        generationLoader.hidden = true;
+        generationLoader.classList.remove('is-leaving');
+        generationLoader.setAttribute('aria-busy', 'false');
+        statusPanel.hidden = false;
+        setVisualProgress(0);
+        onComplete();
+      }, 550);
+    }
+
+    function clearGenerationTimers() {
+      stopVisualProgress();
+      stopStageMessages();
+      if (loaderExitTimer !== null) {
+        window.clearTimeout(loaderExitTimer);
+        loaderExitTimer = null;
+      }
     }
 
     function hideResult() {
@@ -64,6 +283,27 @@ const accessToken = searchParams.get('token');
       imageEl.onload = null;
       imageEl.onerror = null;
       downloadBtn.onclick = null;
+    }
+
+    function hideSgxPass() {
+      sgxPassPanel.hidden = true;
+      sgxPassCode.textContent = '';
+      sgxPassEligibility.textContent = '';
+      sgxPassStatus.textContent = '';
+    }
+
+    function showSgxPass(pass) {
+      const code = typeof pass?.code === 'string' ? pass.code : '';
+      const status = ['active', 'suspended', 'revoked'].includes(pass?.status) ? pass.status : '';
+      if (!code || !status) {
+        hideSgxPass();
+        return;
+      }
+
+      sgxPassCode.textContent = code;
+      sgxPassEligibility.textContent = status === 'active' ? 'ELIGIBLE' : 'REVIEW';
+      sgxPassStatus.textContent = status === 'active' ? '● ACTIVE' : `● ${status.toUpperCase()}`;
+      sgxPassPanel.hidden = false;
     }
 
     function stopPolling() {
@@ -118,16 +358,31 @@ const accessToken = searchParams.get('token');
 
       if (status === 'completed') {
         stopPolling();
-        showCompletedResult();
+        completeVisualProgress(() => {
+          showSgxPass(job.sgxPass);
+          showCompletedResult();
+        });
         return;
       }
 
       if (status === 'failed') {
         stopPolling();
+        hideGenerationLoader();
+        hideSgxPass();
         hideResult();
         return;
       }
 
+      if (status === 'processing') {
+        hideSgxPass();
+        hideResult();
+        showGenerationLoader();
+        schedulePolling();
+        return;
+      }
+
+      hideGenerationLoader();
+      hideSgxPass();
       hideResult();
       schedulePolling();
     }
@@ -156,6 +411,8 @@ const accessToken = searchParams.get('token');
     if (queryJobId && queryAccessToken) {
       poll();
     }
+
+    window.addEventListener('pagehide', clearGenerationTimers, { once: true });
   </script>
 </Layout>
 
@@ -271,6 +528,82 @@ const accessToken = searchParams.get('token');
 
   }
 
+  .sgx-pass-panel {
+    margin-top: 28px;
+    padding: 24px;
+    border: 1px solid rgba(255, 116, 188, 0.38);
+    border-radius: 20px;
+    background: linear-gradient(145deg, rgba(49, 21, 58, 0.94), rgba(17, 16, 29, 0.96));
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.24);
+  }
+
+  .sgx-pass-eyebrow {
+    color: #ff9ecb;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .sgx-pass-code {
+    margin-top: 12px;
+    color: #ffffff;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: clamp(1.35rem, 4vw, 2rem);
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    overflow-wrap: anywhere;
+  }
+
+  .sgx-pass-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 22px;
+  }
+
+  .sgx-pass-label {
+    display: block;
+    color: #9f94b3;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .sgx-pass-value {
+    display: block;
+    margin-top: 5px;
+    color: #ffc0dd;
+    font-size: 0.92rem;
+    letter-spacing: 0.08em;
+  }
+
+  .sgx-pass-note {
+    margin: 22px 0 0;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+
+  .sgx-pass-motto {
+    margin: 14px 0 0;
+    color: #ff9d69;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.15em;
+  }
+
+  @media (max-width: 560px) {
+    .sgx-pass-panel {
+      padding: 20px;
+    }
+
+    .sgx-pass-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+  }
+
 
 
 
@@ -298,4 +631,306 @@ const accessToken = searchParams.get('token');
 
 
   
+  .result-shell {
+    min-height: 100dvh;
+  }
+
+  .result-card {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .generation-loader[hidden] {
+    display: none;
+  }
+
+  .generation-loader {
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    min-height: clamp(560px, 78dvh, 820px);
+    min-height: clamp(560px, 78dvh, calc(100dvh - 48px));
+    place-items: center;
+    overflow: hidden;
+    padding: calc(clamp(48px, 8vw, 88px) + env(safe-area-inset-top)) clamp(20px, 6vw, 64px) calc(clamp(48px, 8vw, 88px) + env(safe-area-inset-bottom));
+    border: 1px solid rgba(255, 155, 211, 0.34);
+    border-radius: 24px;
+    background:
+      radial-gradient(circle at 18% 18%, rgba(255, 95, 194, 0.32), transparent 34%),
+      radial-gradient(circle at 88% 20%, rgba(255, 174, 73, 0.24), transparent 30%),
+      radial-gradient(circle at 50% 110%, rgba(83, 75, 255, 0.38), transparent 52%),
+      #100b24;
+    box-shadow: inset 0 0 60px rgba(17, 8, 39, 0.82), 0 18px 50px rgba(7, 3, 23, 0.36);
+    color: #ffffff;
+  }
+
+  .generation-loader__wash,
+  .generation-loader__scanlines,
+  .generation-loader__particles,
+  .generation-loader__vi {
+    position: absolute;
+    pointer-events: none;
+  }
+
+  .generation-loader__wash {
+    inset: -20%;
+    z-index: -3;
+    background: conic-gradient(from 120deg at 50% 50%, rgba(255, 80, 196, 0.16), rgba(255, 184, 80, 0.13), rgba(69, 74, 255, 0.2), rgba(255, 80, 196, 0.16));
+    filter: blur(28px);
+    animation: generationAmbientShift 15s ease-in-out infinite alternate;
+  }
+
+  .generation-loader__scanlines {
+    inset: 0;
+    z-index: -1;
+    opacity: 0.17;
+    background: repeating-linear-gradient(0deg, transparent 0 4px, rgba(255, 255, 255, 0.08) 5px, transparent 6px 9px);
+    mix-blend-mode: screen;
+  }
+
+  .generation-loader__vi {
+    inset: 50% auto auto 50%;
+    z-index: -2;
+    color: transparent;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: clamp(12rem, 36vw, 25rem);
+    font-weight: 900;
+    letter-spacing: -0.15em;
+    line-height: 0.72;
+    opacity: 0.16;
+    text-indent: -0.15em;
+    transform: translate(-50%, -50%) rotate(-8deg);
+    -webkit-text-stroke: clamp(2px, 0.45vw, 6px) rgba(255, 186, 223, 0.72);
+    text-shadow: 0 0 32px rgba(255, 100, 198, 0.54), 0 0 90px rgba(107, 92, 255, 0.52);
+    animation: generationViPulse 6s ease-in-out infinite;
+    user-select: none;
+  }
+
+  .generation-loader__content {
+    position: relative;
+    z-index: 2;
+    width: min(100%, 610px);
+    text-align: center;
+  }
+
+  .generation-loader__kicker {
+    color: #ffb5db;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: clamp(0.68rem, 1.8vw, 0.82rem);
+    font-weight: 800;
+    letter-spacing: 0.22em;
+    text-shadow: 0 0 18px rgba(255, 124, 207, 0.72);
+  }
+
+  .generation-loader h2 {
+    margin: 18px 0 8px;
+    color: #ffffff;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: clamp(2rem, 6vw, 4.25rem);
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    line-height: 0.98;
+    text-shadow: 0 3px 0 rgba(89, 34, 122, 0.8), 0 0 28px rgba(255, 107, 197, 0.45);
+  }
+
+  .generation-loader__subtitle {
+    margin: 0;
+    color: rgba(255, 238, 250, 0.78);
+    font-size: clamp(0.9rem, 2.5vw, 1.08rem);
+  }
+
+  .generation-loader__progress {
+    width: min(100%, 520px);
+    margin: clamp(28px, 5vw, 42px) auto 0;
+  }
+
+  .generation-loader__progress-track {
+    position: relative;
+    height: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    background: rgba(15, 7, 31, 0.74);
+    box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.34), 0 0 20px rgba(255, 101, 199, 0.2);
+  }
+
+  .generation-loader__progress-bar {
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #ff63bd 0%, #ffab68 46%, #ffe087 100%);
+    box-shadow: 0 0 18px rgba(255, 128, 194, 0.92), 0 0 34px rgba(255, 178, 95, 0.48);
+    transition: width 180ms linear;
+  }
+
+  .generation-loader__progress-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 10px;
+    color: rgba(255, 236, 248, 0.76);
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.15em;
+  }
+
+  .generation-loader__progress-meta span:first-child {
+    color: #ffe39e;
+  }
+
+  .generation-loader__stage {
+    min-height: 1.8em;
+    margin: 24px 0 0;
+    color: #ffffff;
+    font-size: clamp(0.9rem, 2.4vw, 1.06rem);
+    font-weight: 600;
+    text-shadow: 0 0 16px rgba(255, 118, 204, 0.46);
+  }
+
+  .generation-loader__stage.is-changing {
+    animation: generationStageIn 420ms ease both;
+  }
+
+  .generation-loader__email-note {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    width: min(100%, 520px);
+    margin: 28px auto 0;
+    padding: 15px 17px;
+    border: 1px solid rgba(255, 217, 148, 0.28);
+    border-radius: 14px;
+    background: rgba(18, 8, 39, 0.52);
+    color: rgba(255, 240, 250, 0.72);
+    font-size: clamp(0.76rem, 2vw, 0.86rem);
+    line-height: 1.45;
+    text-align: left;
+  }
+
+  .generation-loader__email-note strong,
+  .generation-loader__email-note span:not(.generation-loader__email-icon) {
+    display: block;
+  }
+
+  .generation-loader__email-note strong {
+    color: #ffe5ad;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+  }
+
+  .generation-loader__email-icon {
+    color: #ffd777;
+    font-size: 1.15rem;
+    line-height: 1.1;
+    text-shadow: 0 0 14px rgba(255, 215, 119, 0.8);
+  }
+
+  .generation-loader__particles {
+    inset: 0;
+    z-index: 1;
+  }
+
+  .generation-loader__particles span {
+    position: absolute;
+    display: block;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #ffd98d;
+    box-shadow: 0 0 12px 3px rgba(255, 177, 112, 0.68);
+    opacity: 0;
+    animation: generationParticleFloat 7s ease-in-out infinite;
+  }
+
+  .generation-loader__particles span:nth-child(1) { top: 18%; left: 12%; animation-delay: -1s; }
+  .generation-loader__particles span:nth-child(2) { top: 31%; left: 84%; animation-delay: -4.5s; transform: scale(0.7); }
+  .generation-loader__particles span:nth-child(3) { top: 70%; left: 9%; animation-delay: -2.8s; transform: scale(0.85); }
+  .generation-loader__particles span:nth-child(4) { top: 78%; left: 91%; animation-delay: -5.8s; }
+  .generation-loader__particles span:nth-child(5) { top: 12%; left: 69%; animation-delay: -3.4s; transform: scale(0.55); }
+  .generation-loader__particles span:nth-child(6) { top: 52%; left: 4%; animation-delay: -6.2s; transform: scale(0.6); }
+  .generation-loader__particles span:nth-child(7) { top: 88%; left: 27%; animation-delay: -1.8s; transform: scale(0.7); }
+  .generation-loader__particles span:nth-child(8) { top: 42%; left: 96%; animation-delay: -3.8s; transform: scale(0.55); }
+  .generation-loader__particles span:nth-child(9) { top: 22%; left: 41%; animation-delay: -5.2s; transform: scale(0.5); }
+  .generation-loader__particles span:nth-child(10) { top: 62%; left: 78%; animation-delay: -2.2s; transform: scale(0.65); }
+  .generation-loader__particles span:nth-child(11) { top: 84%; left: 62%; animation-delay: -4.1s; transform: scale(0.45); }
+  .generation-loader__particles span:nth-child(12) { top: 8%; left: 24%; animation-delay: -6.8s; transform: scale(0.6); }
+
+  .generation-loader.is-leaving {
+    animation: generationLoaderExit 550ms ease forwards;
+    pointer-events: none;
+  }
+
+  @keyframes generationAmbientShift {
+    from { transform: translate3d(-3%, -2%, 0) rotate(0deg) scale(1); }
+    to { transform: translate3d(4%, 3%, 0) rotate(14deg) scale(1.08); }
+  }
+
+  @keyframes generationViPulse {
+    0%, 100% { opacity: 0.12; transform: translate(-50%, -50%) rotate(-8deg) scale(0.98); }
+    50% { opacity: 0.2; transform: translate(-50%, -50%) rotate(-5deg) scale(1.03); }
+  }
+
+  @keyframes generationParticleFloat {
+    0%, 100% { opacity: 0; transform: translate3d(0, 12px, 0) scale(0.7); }
+    20%, 72% { opacity: 0.78; }
+    50% { opacity: 0.34; transform: translate3d(8px, -18px, 0) scale(1); }
+  }
+
+  @keyframes generationStageIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes generationLoaderExit {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.985); }
+  }
+
+  @media (max-width: 640px) {
+    .result-shell {
+      align-items: flex-start;
+      padding: 24px 12px;
+    }
+
+    .result-card {
+      padding: 18px;
+      border-radius: 22px;
+    }
+
+    .generation-loader {
+      min-height: clamp(540px, 78dvh, 760px);
+      min-height: clamp(540px, 78dvh, calc(100dvh - 32px));
+      padding-inline: 16px;
+      border-radius: 18px;
+    }
+
+    .generation-loader__vi {
+      font-size: clamp(10rem, 54vw, 16rem);
+    }
+
+    .generation-loader__email-note {
+      margin-top: 24px;
+      padding: 13px 14px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .generation-loader__wash,
+    .generation-loader__vi,
+    .generation-loader__particles span,
+    .generation-loader__stage.is-changing {
+      animation: none !important;
+    }
+
+    .generation-loader__progress-bar {
+      transition: none;
+    }
+
+    .generation-loader.is-leaving {
+      animation: none;
+      opacity: 0;
+    }
+  }
 </style>
