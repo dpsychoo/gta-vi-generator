@@ -78,3 +78,7 @@ export function getAppBaseUrl() {
 export function getJobAccessTokenEncryptionKey() {
   return getOptionalServerEnv('JOB_ACCESS_TOKEN_ENCRYPTION_KEY');
 }
+
+export function getCronSecret() {
+  return getOptionalServerEnv('CRON_SECRET');
+}

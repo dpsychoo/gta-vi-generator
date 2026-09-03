@@ -17,6 +17,12 @@ import {
   type MercadoPagoPayment,
 } from '../../lib/mercadopago';
 import { DevelopmentGenerationError, processPaidJob } from '../../lib/openai';
+import { sendPurchaseConfirmationEmail } from '../../lib/email';
+import {
+  getLegalAcceptanceByJobId,
+  updateLegalAcceptanceCustomerId,
+} from '../../lib/legal-acceptance';
+import { isLegalCenterV1Job } from '../../lib/legal';
 import { ensureSgxPassForApprovedOrder } from '../../lib/sgx-pass';
 import { SupabaseBackendError } from '../../lib/supabase';
 
@@ -179,6 +185,26 @@ export const POST: APIRoute = async ({ request }) => {
 
     if (!associatedJob) {
       throw new Error('No se pudo asociar el job a la identidad SGX.');
+    }
+
+    const legalAcceptance = await getLegalAcceptanceByJobId(jobId);
+    if (!legalAcceptance) {
+      if (isLegalCenterV1Job(associatedJob)) {
+        throw new Error('El job Legal Center v1 no tiene una aceptación legal persistida.');
+      }
+
+      console.info('[mercadopago-webhook] legacy_job_without_legal_acceptance');
+    } else {
+      const associatedAcceptance = await updateLegalAcceptanceCustomerId(jobId, identity.customer.id);
+      if (!associatedAcceptance) {
+        throw new Error('No se pudo asociar la aceptación legal del job aprobado.');
+      }
+
+      await sendPurchaseConfirmationEmail({
+        jobId,
+        customer: identity.customer,
+        order: identity.order,
+      });
     }
 
     const claim = await claimApprovedPaymentForProcessing({ jobId, paymentId });

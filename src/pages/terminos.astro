@@ -1,0 +1,223 @@
+---
+import LegalDocument from '../components/LegalDocument.astro';
+import { TERMS_VERSION } from '../lib/legal';
+
+const sections = [
+  { id: 'proveedor', label: 'Identificación del proveedor' },
+  { id: 'objeto', label: 'Objeto y servicio' },
+  { id: 'precio', label: 'Precio y pago' },
+  { id: 'prestacion', label: 'Inicio y prestación' },
+  { id: 'ia', label: 'Resultados mediante IA' },
+  { id: 'cliente', label: 'Contenido del cliente' },
+  { id: 'retracto', label: 'Retracto' },
+  { id: 'reembolsos', label: 'Reembolsos y fallos' },
+  { id: 'sgx-pass', label: 'SGX PASS' },
+  { id: 'eventos', label: 'Eventos futuros' },
+  { id: 'propiedad', label: 'Propiedad intelectual' },
+  { id: 'disponibilidad', label: 'Disponibilidad y cambios' },
+  { id: 'contacto', label: 'Legislación y contacto' },
+];
+---
+
+<LegalDocument
+  title="Términos del Servicio — SGODX SpA"
+  description="Condiciones aplicables a la contratación del servicio digital personalizado de generación de imágenes."
+  version={TERMS_VERSION}
+  sections={sections}
+>
+  <section id="proveedor">
+    <h2>1. Identificación del proveedor</h2>
+    <p>
+      El servicio es prestado por <strong>SGODX SpA</strong>, RUT <strong>78.500.041-2</strong>, con domicilio en Santiago de Apóstol 4191, La Serena, Región de Coquimbo, Chile.
+    </p>
+    <p>Representante / Administrador: <strong>David Ignacio Areas Castro</strong>.</p>
+    <p>
+      Atención al cliente: <a href="mailto:support@sgodx.com">support@sgodx.com</a> · Asuntos legales: <a href="mailto:legal@sgodx.com">legal@sgodx.com</a>.
+    </p>
+  </section>
+
+  <section id="objeto">
+    <h2>2. Objeto de estos términos</h2>
+    <p>
+      Estos términos regulan el acceso y la contratación del servicio digital personalizado ofrecido por SGODX SpA. La compra implica la aceptación de la versión de estos términos que se muestra antes del pago y que queda registrada junto con la compra.
+    </p>
+  </section>
+
+  <section id="servicio">
+    <h2>3. Descripción del servicio</h2>
+    <p>
+      El servicio consiste en procesar mediante herramientas de inteligencia artificial una o dos imágenes proporcionadas por el cliente y entregar un resultado digital generado en un estilo visual asociado a la experiencia SGODX.
+    </p>
+    <p>
+      El resultado estará disponible mediante una página protegida y se enviará un enlace al correo indicado por el cliente. El cliente debe conservar el resultado una vez recibido, ya que los archivos pueden dejar de estar disponibles conforme a la Política de Privacidad y sus reglas de conservación.
+    </p>
+  </section>
+
+  <section id="precio">
+    <h2>4. Precio y pago</h2>
+    <p>
+      El precio contractual vigente del servicio es <strong>$2.990 CLP</strong>, impuestos y cargos propios del servicio incluidos cuando corresponda. El pago se procesa mediante Mercado Pago y puede estar sujeto a las condiciones de ese proveedor de pagos.
+    </p>
+    <p>
+      La contratación queda sujeta a la confirmación efectiva del pago. No se debe considerar contratado un servicio que figure únicamente como pendiente o rechazado en el medio de pago.
+    </p>
+  </section>
+
+  <section id="prestacion">
+    <h2>5. Inicio y prestación</h2>
+    <p>
+      Una vez que Mercado Pago confirma el pago aprobado, el procesamiento comienza automáticamente. El servicio puede tardar según la carga, la validación técnica y los proveedores involucrados. No se garantiza un número exacto de segundos o minutos.
+    </p>
+  </section>
+
+  <section id="ia">
+    <h2>6. Naturaleza de los resultados generados mediante IA</h2>
+    <p>
+      Los resultados se generan mediante inteligencia artificial y pueden presentar variaciones de composición, iluminación, color, rasgos o estilo. No se garantiza una réplica exacta de una referencia ni un resultado idéntico a una expectativa subjetiva.
+    </p>
+    <p>
+      Las diferencias estéticas subjetivas no constituyen por sí mismas un incumplimiento cuando el servicio fue correctamente procesado y entregado. Esta regla no limita la responsabilidad que pueda corresponder por fallos reales de prestación, cobros indebidos o incumplimientos exigibles conforme a la legislación aplicable.
+    </p>
+  </section>
+
+  <section id="cliente">
+    <h2>7. Contenido proporcionado por el cliente</h2>
+    <p>El cliente declara que:</p>
+    <ul>
+      <li>tiene los derechos o autorizaciones necesarios para utilizar las imágenes;</li>
+      <li>no subirá contenido ilícito, fraudulento o que infrinja derechos de terceros;</li>
+      <li>no utilizará imágenes de terceros sin autorización cuando esta sea necesaria.</li>
+    </ul>
+    <p>
+      El cliente conserva sus derechos sobre el contenido que proporcione. Otorga a SGODX SpA una licencia limitada, no exclusiva y únicamente instrumental para procesar, almacenar temporalmente, generar, entregar y gestionar soporte o incidencias del servicio contratado.
+    </p>
+    <p>
+      Esta licencia no constituye una cesión absoluta de los derechos del cliente. SGODX SpA podrá restringir contenido que infrinja estos términos o la legislación aplicable.
+    </p>
+  </section>
+
+  <section id="contenido-prohibido">
+    <h2>8. Contenido prohibido</h2>
+    <p>
+      No está permitido utilizar el servicio para contenido ilícito, que infrinja derechos de autor, marcas, imagen o privacidad de terceros, que promueva fraude, acoso o violencia, o que involucre explotación sexual, sexualización de menores, material íntimo no consentido o suplantación abusiva de identidad.
+    </p>
+    <p>
+      SGODX SpA podrá suspender o rechazar solicitudes que presenten señales razonables de abuso, fraude o incumplimiento, sin perjuicio de los derechos que correspondan al consumidor.
+    </p>
+  </section>
+
+  <section id="retracto">
+    <h2>9. Exclusión del derecho a retracto</h2>
+    <p class="legal-callout">
+      SGODX SpA dispone expresamente que el derecho a retracto no procederá respecto de este servicio digital personalizado, conforme a las condiciones informadas de forma previa, clara y accesible antes del pago.
+    </p>
+    <p>
+      El cliente solicita expresamente que el servicio comience inmediatamente una vez confirmado el pago. Esta exclusión no pretende eliminar ni limitar derechos legales irrenunciables que resulten aplicables.
+    </p>
+  </section>
+
+  <section id="reembolsos">
+    <h2>10. Reembolsos</h2>
+    <p>
+      No procede un reembolso voluntario por arrepentimiento, cambio de opinión, disconformidad meramente subjetiva o decisión de no utilizar el resultado, cuando el servicio haya sido correctamente prestado.
+    </p>
+    <p>
+      Esta regla no limita el cobro duplicado, un servicio no prestado por un fallo atribuible a SGODX SpA ni los derechos obligatorios establecidos por la legislación aplicable. Los detalles se encuentran en la <a href="/reembolsos">Política de Retracto, Cancelaciones y Reembolsos</a>.
+    </p>
+  </section>
+
+  <section id="fallos">
+    <h2>11. Fallos técnicos</h2>
+    <p>
+      Ante un fallo técnico, SGODX SpA priorizará, cuando sea posible, el reintento, el restablecimiento o la entrega del resultado. Si definitivamente no puede prestarse el servicio, se evaluará la solución o restitución que corresponda según el caso y la legislación aplicable.
+    </p>
+    <p>
+      Un fallo aislado del email no significa necesariamente que el servicio no haya sido prestado si la imagen quedó generada y disponible. El cliente puede solicitar asistencia en <a href="mailto:support@sgodx.com">support@sgodx.com</a>.
+    </p>
+  </section>
+
+  <section id="sgx-pass">
+    <h2>12. SGX PASS</h2>
+    <p>
+      El SGX PASS es un identificador persistente vinculado al Customer. Un mismo cliente conserva el mismo PASS y múltiples compras no generan múltiples PASS para ese cliente.
+    </p>
+    <p>
+      El PASS tiene un código público de identificación. No es una contraseña, dinero, moneda, activo financiero ni instrumento de inversión, y no es canjeable por efectivo.
+    </p>
+    <p>
+      El PASS puede tener estado <em>active</em>, <em>suspended</em> o <em>revoked</em>. “Permanente” describe la persistencia de la identidad dentro del ecosistema SGODX; no constituye un derecho irrevocable frente a fraude, abuso, incumplimiento o exigencias legales.
+    </p>
+  </section>
+
+  <section id="eventos">
+    <h2>13. Eventos futuros</h2>
+    <p>
+      Tener un SGX PASS no garantiza automáticamente participación, elegibilidad, premios ni acceso a sorteos, misiones, dinámicas o eventos.
+    </p>
+    <p>
+      Cada evento tendrá sus propias bases, requisitos, vigencia y reglas. La participación podrá requerir una aceptación o registro adicional y se gestionará separadamente.
+    </p>
+  </section>
+
+  <section id="propiedad">
+    <h2>14. Propiedad intelectual de SGODX</h2>
+    <p>
+      La marca SGODX, sus textos, diseño, componentes, contenido propio y elementos identificativos pertenecen a SGODX SpA o se utilizan con las autorizaciones que correspondan. La compra del servicio no transfiere derechos sobre esos elementos.
+    </p>
+  </section>
+
+  <section id="marcas-terceros">
+    <h2>15. Marcas de terceros</h2>
+    <p>
+      Esta experiencia es independiente. SGODX no está afiliado, patrocinado ni respaldado por Rockstar Games o Take-Two Interactive.
+    </p>
+    <p>
+      Las marcas, nombres e imágenes de terceros pertenecen a sus respectivos titulares. Este disclaimer no concede por sí solo licencias ni derechos de uso sobre marcas de terceros.
+    </p>
+  </section>
+
+  <section id="disponibilidad">
+    <h2>16. Disponibilidad y mantenimiento</h2>
+    <p>
+      SGODX SpA podrá realizar mantenimiento, actualizaciones o cambios técnicos para operar y proteger el servicio. Se procurará mantener la continuidad razonable, pero no se garantiza disponibilidad ininterrumpida.
+    </p>
+  </section>
+
+  <section id="responsabilidad">
+    <h2>17. Limitación razonable de responsabilidad</h2>
+    <p>
+      SGODX SpA responderá conforme a la legislación aplicable por sus incumplimientos y fallos atribuibles. Ninguna disposición de estos términos pretende excluir o limitar responsabilidad legal inderogable, dolo, culpa grave, cobros indebidos o derechos obligatorios del consumidor.
+    </p>
+  </section>
+
+  <section id="suspension">
+    <h2>18. Suspensión por fraude o abuso</h2>
+    <p>
+      SGODX SpA podrá suspender el acceso, una solicitud o un PASS cuando existan antecedentes razonables de fraude, abuso, uso ilícito o incumplimiento. Las medidas deberán aplicarse de forma proporcional y sin afectar derechos obligatorios.
+    </p>
+  </section>
+
+  <section id="cambios">
+    <h2>19. Cambios y versionado</h2>
+    <p>
+      Las condiciones pueden actualizarse para reflejar cambios legales, comerciales o técnicos. Cada versión tendrá una fecha y número identificable. Una nueva versión no reemplaza retroactivamente la versión que una compra anterior haya aceptado.
+    </p>
+  </section>
+
+  <section id="legislacion">
+    <h2>20. Legislación aplicable</h2>
+    <p>
+      Estos términos se interpretan conforme a las leyes de la República de Chile, respetando los derechos inderogables reconocidos a los consumidores por la legislación aplicable.
+    </p>
+  </section>
+
+  <section id="contacto">
+    <h2>21. Contacto</h2>
+    <p>
+      Para soporte, consultas sobre la contratación o incidencias del servicio: <a href="mailto:support@sgodx.com">support@sgodx.com</a>.
+    </p>
+    <p>
+      Para asuntos legales: <a href="mailto:legal@sgodx.com">legal@sgodx.com</a>.
+    </p>
+  </section>
+</LegalDocument>

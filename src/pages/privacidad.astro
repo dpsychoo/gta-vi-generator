@@ -1,0 +1,150 @@
+---
+import LegalDocument from '../components/LegalDocument.astro';
+import { PRIVACY_VERSION } from '../lib/legal';
+
+const sections = [
+  { id: 'responsable', label: 'Responsable del tratamiento' },
+  { id: 'datos', label: 'Datos tratados' },
+  { id: 'finalidades', label: 'Finalidades' },
+  { id: 'imagenes', label: 'Imágenes y conservación' },
+  { id: 'despues', label: 'Datos posteriores' },
+  { id: 'proveedores', label: 'Proveedores' },
+  { id: 'transferencias', label: 'Procesamiento internacional' },
+  { id: 'seguridad', label: 'Seguridad' },
+  { id: 'derechos', label: 'Derechos del titular' },
+  { id: 'menores', label: 'Menores y actualizaciones' },
+];
+---
+
+<LegalDocument
+  title="Política de Privacidad — SGODX SpA"
+  description="Información sobre los datos personales y archivos tratados para prestar y proteger el servicio SGODX."
+  version={PRIVACY_VERSION}
+  sections={sections}
+>
+  <section id="responsable">
+    <h2>1. Responsable del tratamiento</h2>
+    <p>
+      El responsable del tratamiento relacionado con este servicio es <strong>SGODX SpA</strong>, RUT <strong>78.500.041-2</strong>, con domicilio en Santiago de Apóstol 4191, La Serena, Región de Coquimbo, Chile.
+    </p>
+    <p>
+      Consultas de privacidad y datos personales: <a href="mailto:privacy@sgodx.com">privacy@sgodx.com</a>.
+    </p>
+  </section>
+
+  <section id="datos">
+    <h2>2. Datos tratados</h2>
+    <p>Según el uso del servicio, pueden tratarse:</p>
+    <ul>
+      <li>email proporcionado por el cliente;</li>
+      <li>imágenes proporcionadas por el cliente;</li>
+      <li>imagen digital generada;</li>
+      <li>Customer ID y SGX PASS;</li>
+      <li>datos de jobs y orders;</li>
+      <li>estado e identificadores operativos del pago;</li>
+      <li>fechas, timestamps y versiones de documentos aceptados;</li>
+      <li>registros técnicos y de seguridad que puedan generarse mediante la infraestructura y los proveedores.</li>
+    </ul>
+    <p>
+      SGODX no solicita ni pretende almacenar números completos de tarjetas. Los datos del instrumento de pago son gestionados por el proveedor de pagos conforme a sus propias condiciones.
+    </p>
+  </section>
+
+  <section id="finalidades">
+    <h2>3. Finalidades</h2>
+    <p>Los datos pueden utilizarse para:</p>
+    <ul>
+      <li>prestar el servicio contratado;</li>
+      <li>procesar la generación de imágenes;</li>
+      <li>coordinar y verificar el pago;</li>
+      <li>entregar el resultado por página protegida y correo;</li>
+      <li>atender soporte e incidencias;</li>
+      <li>prevenir fraude, abuso y usos ilícitos;</li>
+      <li>cumplir obligaciones legales;</li>
+      <li>crear y mantener la identidad SGX PASS;</li>
+      <li>auditar la aceptación de documentos legales y las condiciones de la compra.</li>
+    </ul>
+  </section>
+
+  <section id="imagenes">
+    <h2>4. Imágenes y conservación</h2>
+    <p class="legal-callout">
+      Las imágenes originales proporcionadas por el cliente y los resultados generados podrán conservarse temporalmente durante un período de hasta <strong>30 días</strong> desde la prestación o generación del servicio.
+    </p>
+    <p>
+      La conservación temporal permite realizar la generación, entregar el resultado, atender solicitudes de recuperación o soporte, resolver incidencias y mantener la seguridad operativa.
+    </p>
+    <p>
+      Después de ese período, los archivos podrán ser eliminados del Storage. La eliminación de archivos no implica necesariamente la eliminación inmediata de metadatos de negocio o registros que deban conservarse por fines legítimos u obligaciones legales.
+    </p>
+    <p>
+      El cliente debe descargar y conservar su resultado. Los archivos digitales pueden dejar de estar disponibles posteriormente conforme a esta política de conservación.
+    </p>
+  </section>
+
+  <section id="despues">
+    <h2>5. Datos que pueden conservarse después de eliminar imágenes</h2>
+    <p>
+      Después de eliminar las imágenes, podrán conservarse durante el tiempo necesario Customer, SGX PASS, Orders, metadata necesaria del Job, aceptación legal y registros fiscales o contractuales, cuando exista una finalidad legítima o una obligación legal que lo justifique.
+    </p>
+    <p>
+      La conservación se limitará a lo necesario para la finalidad correspondiente y no incluye conservar fotografías cuando ya no sean necesarias.
+    </p>
+  </section>
+
+  <section id="proveedores">
+    <h2>6. Proveedores tecnológicos</h2>
+    <p>El servicio utiliza los siguientes proveedores o servicios:</p>
+    <ul>
+      <li><strong>Mercado Pago:</strong> procesamiento y verificación del pago.</li>
+      <li><strong>OpenAI:</strong> procesamiento/generación de imágenes mediante inteligencia artificial.</li>
+      <li><strong>Supabase:</strong> base de datos y almacenamiento de archivos.</li>
+      <li><strong>Resend:</strong> envío de correos transaccionales.</li>
+      <li><strong>Vercel:</strong> hosting y ejecución del backend.</li>
+      <li><strong>Google Fonts:</strong> carga de tipografías utilizadas por la interfaz.</li>
+    </ul>
+    <p>
+      Cada proveedor puede aplicar sus propias condiciones y políticas de privacidad. SGODX no presenta estos servicios como parte de su propia empresa.
+    </p>
+  </section>
+
+  <section id="transferencias">
+    <h2>7. Transferencias y procesamiento internacional</h2>
+    <p>
+      Algunos proveedores tecnológicos pueden procesar datos fuera de Chile según su infraestructura, subcontratistas y condiciones aplicables. El uso del servicio implica que el tratamiento puede involucrar esas operaciones internacionales, sujeto a las medidas y obligaciones que correspondan.
+    </p>
+  </section>
+
+  <section id="seguridad">
+    <h2>8. Seguridad</h2>
+    <p>
+      SGODX utiliza controles técnicos destinados a proteger el servicio, incluyendo validación de archivos, acceso server-side a Storage, enlaces de resultado protegidos mediante token y separación entre información pública y operaciones administrativas.
+    </p>
+    <p>
+      Ningún sistema conectado a Internet puede garantizar seguridad absoluta. Si se detecta un incidente que pueda afectar los datos, se evaluarán las medidas y comunicaciones que correspondan.
+    </p>
+  </section>
+
+  <section id="derechos">
+    <h2>9. Derechos del titular</h2>
+    <p>
+      El titular puede contactar a <a href="mailto:privacy@sgodx.com">privacy@sgodx.com</a> para formular consultas y solicitudes relacionadas con sus datos personales, incluyendo acceso, rectificación, eliminación u oposición cuando correspondan conforme a la legislación aplicable.
+    </p>
+    <p>
+      Las solicitudes podrán requerir información razonable para verificar la identidad del solicitante. Se responderán y gestionarán según la normativa chilena vigente y los derechos que resulten aplicables.
+    </p>
+    <p>
+      Esta política se revisará para mantenerla alineada con el marco chileno actual y con la entrada en vigencia de la Ley N° 21.719, en cuanto resulte aplicable. No se establecen aquí procedimientos gubernamentales específicos.
+    </p>
+  </section>
+
+  <section id="menores">
+    <h2>10. Menores, actualizaciones y versiones</h2>
+    <p>
+      El usuario debe contar con capacidad legal para contratar. Cuando corresponda, deberá actuar con la autorización de su representante legal.
+    </p>
+    <p>
+      Esta política puede actualizarse por cambios legales, técnicos u operativos. Cada versión se identifica con una fecha y la aceptación de una compra conserva la versión que fue presentada en ese momento.
+    </p>
+  </section>
+</LegalDocument>

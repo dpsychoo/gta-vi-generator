@@ -5,7 +5,9 @@ import {
   generateJobAccessToken,
   hashJobAccessToken,
 } from '../../lib/job-access';
-import { createJob, updateJob } from '../../lib/job-store';
+import { attachJobInputImages, createJob, updateJob } from '../../lib/job-store';
+import { createLegalAcceptance } from '../../lib/legal-acceptance';
+import { isCurrentLegalConsent } from '../../lib/legal';
 import {
   createMercadoPagoPreference,
   MercadoPagoIntegrationError,
@@ -36,6 +38,11 @@ function isAllowedRequestOrigin(request: Request) {
   } catch {
     return false;
   }
+}
+
+function getFormString(formData: FormData, name: string) {
+  const value = formData.get(name);
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 async function validateImageFile(file: File): Promise<{ valid: boolean; error?: string }> {
@@ -89,7 +96,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const formData = await request.formData();
-    const email = String(formData.get('email') || '').trim();
+    const email = getFormString(formData, 'email');
     const files = Array.from(formData.getAll('images')).filter((item): item is File => item instanceof File);
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -117,13 +124,65 @@ export const POST: APIRoute = async ({ request }) => {
       }
     }
 
+    const legalConsent = {
+      legalAccepted: getFormString(formData, 'legalAccepted') === 'true',
+      immediateExecutionAccepted: getFormString(formData, 'immediateExecutionAccepted') === 'true',
+      retractExclusionAcknowledged: getFormString(formData, 'retractExclusionAcknowledged') === 'true',
+      termsVersion: getFormString(formData, 'termsVersion'),
+      privacyVersion: getFormString(formData, 'privacyVersion'),
+      refundPolicyVersion: getFormString(formData, 'refundPolicyVersion'),
+    };
+
+    if (!legalConsent.legalAccepted || !legalConsent.immediateExecutionAccepted || !legalConsent.retractExclusionAcknowledged) {
+      return new Response(JSON.stringify({
+        ok: false,
+        error: 'Debes aceptar el consentimiento legal y el inicio inmediato antes de continuar.',
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!isCurrentLegalConsent(legalConsent)) {
+      return new Response(JSON.stringify({
+        ok: false,
+        error: 'Las versiones legales ya no están vigentes. Recarga la página e inténtalo nuevamente.',
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const accessToken = generateJobAccessToken();
     const job = await createJob({
       email,
-      files,
       accessTokenHash: hashJobAccessToken(accessToken),
       accessTokenEncrypted: encryptJobAccessToken(accessToken),
     });
+    try {
+      await createLegalAcceptance({
+        jobId: job.id,
+        termsVersion: legalConsent.termsVersion,
+        privacyVersion: legalConsent.privacyVersion,
+        refundPolicyVersion: legalConsent.refundPolicyVersion,
+        immediateExecutionAccepted: legalConsent.immediateExecutionAccepted,
+        retractExclusionAcknowledged: legalConsent.retractExclusionAcknowledged,
+        source: 'generator_checkout',
+      });
+    } catch (error) {
+      console.error('[create-job] legal_acceptance_failed');
+      try {
+        await updateJob(job.id, {
+          status: 'failed',
+          paymentStatus: 'pending',
+          errorMessage: 'No se pudo persistir la aceptación legal antes del checkout.',
+        });
+      } catch {
+        console.error('[create-job] legal_acceptance_failure_status_update_failed');
+      }
+      throw error;
+    }
+    await attachJobInputImages(job.id, files);
     const payment = await createMercadoPagoPreference({
       jobId: job.id,
       email: job.email,

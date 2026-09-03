@@ -1,4 +1,10 @@
 {
+  "crons": [
+    {
+      "path": "/api/cron/cleanup-images",
+      "schedule": "0 4 * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/resultado",

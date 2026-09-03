@@ -1,0 +1,304 @@
+---
+import Layout from '../layouts/Layout.astro';
+import {
+	LEGAL_LAST_UPDATED,
+	LEGAL_PATHS,
+	LEGAL_PROVIDER,
+} from '../lib/legal';
+
+interface SectionLink {
+	id: string;
+	label: string;
+}
+
+interface Props {
+	title: string;
+	description: string;
+	version: string;
+	sections: SectionLink[];
+}
+
+const { title, description, version, sections } = Astro.props;
+---
+
+<Layout title={`${title} | SGODX`} description={description}>
+  <main class="legal-document-shell">
+    <div class="legal-document-topbar">
+      <a class="legal-back-link" href="/">← Volver al generador</a>
+      <a class="legal-center-link" href={LEGAL_PATHS.center}>Legal Center</a>
+    </div>
+
+    <article class="legal-document-card">
+      <header class="legal-document-header">
+        <p class="legal-document-kicker">SGODX LEGAL CENTER</p>
+        <h1>{title}</h1>
+        <p class="legal-document-description">{description}</p>
+        <div class="legal-document-meta" aria-label="Información de versión">
+          <span>Versión {version}</span>
+          <span>Última actualización: {LEGAL_LAST_UPDATED}</span>
+        </div>
+      </header>
+
+      <nav class="legal-document-toc" aria-label="Índice del documento">
+        <strong>Contenido</strong>
+        <ol>
+          {sections.map((section) => (
+            <li><a href={`#${section.id}`}>{section.label}</a></li>
+          ))}
+        </ol>
+      </nav>
+
+      <div class="legal-document-content">
+        <slot />
+      </div>
+
+      <footer class="legal-document-contact">
+        <strong>Contacto</strong>
+        <p>
+          {LEGAL_PROVIDER.company} · RUT {LEGAL_PROVIDER.rut}<br />
+          {LEGAL_PROVIDER.address}<br />
+          Representante: {LEGAL_PROVIDER.representative}
+        </p>
+        <p>
+          Soporte: <a href={`mailto:${LEGAL_PROVIDER.supportEmail}`}>{LEGAL_PROVIDER.supportEmail}</a><br />
+          Asuntos legales: <a href={`mailto:${LEGAL_PROVIDER.legalEmail}`}>{LEGAL_PROVIDER.legalEmail}</a><br />
+          Privacidad: <a href={`mailto:${LEGAL_PROVIDER.privacyEmail}`}>{LEGAL_PROVIDER.privacyEmail}</a>
+        </p>
+      </footer>
+    </article>
+  </main>
+</Layout>
+
+<style>
+  :global(html),
+  :global(body) {
+    min-height: 100%;
+    background: #070910;
+  }
+
+  .legal-document-shell {
+    min-height: 100vh;
+    padding: 34px 20px 64px;
+    background:
+      radial-gradient(circle at 12% 0%, rgba(255, 108, 182, 0.12), transparent 32%),
+      radial-gradient(circle at 86% 14%, rgba(123, 108, 255, 0.13), transparent 34%),
+      #070910;
+    color: #edf2ff;
+    font-family: 'Poppins', sans-serif;
+  }
+
+  .legal-document-topbar,
+  .legal-document-card {
+    width: min(900px, 100%);
+    margin-inline: auto;
+  }
+
+  .legal-document-topbar {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 20px;
+  }
+
+  .legal-back-link,
+  .legal-center-link {
+    color: #ffd1e7;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .legal-back-link:hover,
+  .legal-center-link:hover {
+    color: #ffe29b;
+  }
+
+  .legal-back-link:focus-visible,
+  .legal-center-link:focus-visible,
+  .legal-document-content a:focus-visible,
+  .legal-document-contact a:focus-visible {
+    outline: 2px solid #ffe29b;
+    outline-offset: 4px;
+    border-radius: 3px;
+  }
+
+  .legal-document-card {
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    border-radius: 24px;
+    background: linear-gradient(180deg, rgba(17, 19, 31, 0.97), rgba(8, 10, 18, 0.98));
+    box-shadow: 0 28px 90px rgba(0, 0, 0, 0.36), 0 0 45px rgba(220, 75, 178, 0.08);
+  }
+
+  .legal-document-header {
+    padding: clamp(28px, 6vw, 56px) clamp(22px, 7vw, 72px) 30px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  }
+
+  .legal-document-kicker {
+    margin: 0 0 14px;
+    color: #ff9ecb;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+  }
+
+  .legal-document-header h1 {
+    max-width: 760px;
+    margin: 0;
+    color: #ffffff;
+    font-size: clamp(1.8rem, 5vw, 3.2rem);
+    line-height: 1.08;
+    letter-spacing: -0.04em;
+  }
+
+  .legal-document-description {
+    max-width: 720px;
+    margin: 18px 0 0;
+    color: rgba(237, 242, 255, 0.72);
+    font-size: clamp(0.92rem, 2vw, 1.08rem);
+    line-height: 1.65;
+  }
+
+  .legal-document-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    margin-top: 24px;
+    color: #ffd99b;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+  }
+
+  .legal-document-toc {
+    margin: 24px clamp(22px, 7vw, 72px) 0;
+    padding: 18px 20px;
+    border: 1px solid rgba(255, 166, 213, 0.18);
+    border-radius: 16px;
+    background: rgba(34, 21, 48, 0.46);
+  }
+
+  .legal-document-toc strong {
+    color: #ffe1ac;
+    font-size: 0.82rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .legal-document-toc ol {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 24px;
+    margin: 12px 0 0;
+    padding-left: 20px;
+  }
+
+  .legal-document-toc a,
+  .legal-document-content a,
+  .legal-document-contact a {
+    color: #ffc4e1;
+    text-decoration: underline;
+    text-decoration-color: rgba(255, 196, 225, 0.45);
+    text-underline-offset: 3px;
+  }
+
+  .legal-document-toc a {
+    font-size: 0.8rem;
+    line-height: 1.45;
+  }
+
+  .legal-document-content {
+    padding: 12px clamp(22px, 7vw, 72px) 46px;
+  }
+
+  :global(.legal-document-content section) {
+    scroll-margin-top: 20px;
+    padding-top: 30px;
+  }
+
+  :global(.legal-document-content h2) {
+    margin: 0 0 12px;
+    color: #ffffff;
+    font-size: clamp(1.15rem, 2.8vw, 1.55rem);
+    line-height: 1.25;
+  }
+
+  :global(.legal-document-content h3) {
+    margin: 20px 0 8px;
+    color: #ffe0a2;
+    font-size: 1rem;
+  }
+
+  :global(.legal-document-content p),
+  :global(.legal-document-content li) {
+    color: rgba(237, 242, 255, 0.78);
+    font-size: clamp(0.91rem, 1.8vw, 1rem);
+    line-height: 1.78;
+  }
+
+  :global(.legal-document-content p) {
+    margin: 0 0 12px;
+  }
+
+  :global(.legal-document-content ul),
+  :global(.legal-document-content ol) {
+    margin: 8px 0 16px;
+    padding-left: 24px;
+  }
+
+  :global(.legal-document-content li + li) {
+    margin-top: 6px;
+  }
+
+  :global(.legal-document-content strong) {
+    color: #ffffff;
+  }
+
+  :global(.legal-document-content .legal-callout) {
+    margin: 16px 0;
+    padding: 16px 18px;
+    border-left: 3px solid #ff9ecb;
+    border-radius: 8px;
+    background: rgba(255, 135, 193, 0.08);
+  }
+
+  .legal-document-contact {
+    margin: 0 clamp(22px, 7vw, 72px) 46px;
+    padding-top: 26px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(237, 242, 255, 0.73);
+    font-size: 0.9rem;
+    line-height: 1.7;
+  }
+
+  .legal-document-contact strong {
+    color: #ffffff;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .legal-document-contact p {
+    margin: 8px 0 0;
+  }
+
+  @media (max-width: 640px) {
+    .legal-document-shell {
+      padding: 24px 12px 40px;
+    }
+
+    .legal-document-topbar {
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .legal-document-card {
+      border-radius: 18px;
+    }
+
+    .legal-document-toc ol {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

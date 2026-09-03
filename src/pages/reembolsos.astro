@@ -1,0 +1,85 @@
+---
+import LegalDocument from '../components/LegalDocument.astro';
+import { REFUND_POLICY_VERSION } from '../lib/legal';
+
+const sections = [
+  { id: 'servicio', label: 'Servicio digital personalizado' },
+  { id: 'retracto', label: 'Exclusión de retracto' },
+  { id: 'sin-reembolso', label: 'Casos sin reembolso voluntario' },
+  { id: 'fallos', label: 'Fallos técnicos' },
+  { id: 'duplicado', label: 'Cobro duplicado' },
+  { id: 'email', label: 'Email y resultado' },
+  { id: 'derechos', label: 'Derechos obligatorios' },
+];
+---
+
+<LegalDocument
+  title="Política de Retracto, Cancelaciones y Reembolsos — SGODX SpA"
+  description="Reglas claras para el inicio del servicio, fallos técnicos, cobros duplicados y solicitudes de soporte."
+  version={REFUND_POLICY_VERSION}
+  sections={sections}
+>
+  <section id="servicio">
+    <h2>1. Servicio digital personalizado</h2>
+    <p>
+      El servicio consiste en generar una imagen digital personalizada mediante inteligencia artificial a partir de una o dos imágenes proporcionadas por el cliente.
+    </p>
+    <p>
+      El servicio comienza automáticamente después de que Mercado Pago confirma el pago aprobado.
+    </p>
+  </section>
+
+  <section id="retracto">
+    <h2>2. Exclusión del derecho a retracto</h2>
+    <p class="legal-callout">
+      SGODX SpA dispone expresamente la exclusión del derecho a retracto para este servicio digital personalizado, informándolo antes de la contratación y del pago, junto con la solicitud expresa de inicio inmediato.
+    </p>
+    <p>
+      Esta exclusión no limita derechos irrenunciables que resulten aplicables conforme a la legislación chilena.
+    </p>
+  </section>
+
+  <section id="sin-reembolso">
+    <h2>3. Casos sin reembolso voluntario</h2>
+    <p>
+      No procede una devolución voluntaria por arrepentimiento, cambio de opinión, disconformidad subjetiva con el estilo o no utilización posterior de la imagen, cuando el servicio haya sido correctamente prestado.
+    </p>
+  </section>
+
+  <section id="fallos">
+    <h2>4. Fallos técnicos</h2>
+    <p>
+      Si el pago fue aprobado y SGODX no puede prestar definitivamente el servicio por un fallo atribuible a SGODX, el cliente debe contactar a <a href="mailto:support@sgodx.com">support@sgodx.com</a>.
+    </p>
+    <p>
+      Según el caso, SGODX podrá reintentar la generación, restablecer el acceso, entregar el resultado o aplicar la solución o restitución que corresponda.
+    </p>
+  </section>
+
+  <section id="duplicado">
+    <h2>5. Cobro duplicado</h2>
+    <p>
+      Un cobro duplicado debe ser revisado. Esta política no se utilizará para retener indebidamente un cobro duplicado.
+    </p>
+    <p>
+      Para solicitar revisión, escribir a <a href="mailto:support@sgodx.com">support@sgodx.com</a> indicando el email utilizado y los antecedentes disponibles del pago, sin enviar números completos de tarjeta.
+    </p>
+  </section>
+
+  <section id="email">
+    <h2>6. Email y disponibilidad del resultado</h2>
+    <p>
+      Si la generación terminó correctamente y `/resultado` está disponible, un fallo aislado del email no convierte automáticamente el servicio en un servicio no prestado.
+    </p>
+    <p>
+      SGODX deberá poder prestar soporte razonable para recuperar el resultado dentro del período de conservación aplicable.
+    </p>
+  </section>
+
+  <section id="derechos">
+    <h2>7. Derechos obligatorios</h2>
+    <p>
+      Nada en esta política limita derechos irrenunciables establecidos por la legislación chilena ni impide solicitar revisión de un caso concreto.
+    </p>
+  </section>
+</LegalDocument>

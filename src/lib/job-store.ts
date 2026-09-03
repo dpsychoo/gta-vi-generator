@@ -15,6 +15,7 @@ import {
   supabaseUpload,
   SupabaseBackendError,
 } from './supabase';
+import { LEGAL_CENTER_CHECKOUT_MARKER, LEGAL_CENTER_VERSION } from './legal';
 
 export type JobStatus = 'pending_payment' | 'paid' | 'processing' | 'completed' | 'failed';
 export type PaymentStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'failed' | null;
@@ -43,6 +44,8 @@ export interface JobRecord {
   outputImageUrl?: string | null;
   customerId?: string | null;
   sgxPassId?: string | null;
+  mediaPurgedAt?: string | null;
+  mediaRetentionStartedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   errorMessage?: string | null;
@@ -112,6 +115,8 @@ function mapJobRow(row: Record<string, any>): JobRecord {
     outputImageUrl: row.output_image_url,
     customerId: row.customer_id,
     sgxPassId: row.sgx_pass_id,
+    mediaPurgedAt: row.media_purged_at,
+    mediaRetentionStartedAt: row.media_retention_started_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     errorMessage: row.error_message,
@@ -124,29 +129,17 @@ function mapJobRow(row: Record<string, any>): JobRecord {
 
 export async function createJob({
   email,
-  files,
   accessTokenHash,
   accessTokenEncrypted,
 }: {
   email: string;
-  files: File[];
   accessTokenHash: string;
   accessTokenEncrypted: string;
 }) {
   if (isSupabaseConfigured()) {
     const supabase = getSupabaseAdmin();
     const jobId = crypto.randomUUID();
-    const bucket = getSupabaseUploadsBucket();
-    const uploadedPaths: string[] = [];
-
-    for (const [index, file] of files.entries()) {
-      const fileExt = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '.jpg';
-      const safePath = `${jobId}/input-${index + 1}${fileExt}`;
-      const buffer = Buffer.from(await file.arrayBuffer());
-      await supabaseUpload(bucket, safePath, buffer, file.type || 'application/octet-stream');
-      uploadedPaths.push(safePath);
-    }
-
+    const now = new Date().toISOString();
     const payload = {
       id: jobId,
       email,
@@ -158,14 +151,18 @@ export async function createJob({
       mercadopago_preference_id: null,
       payment_url: null,
       external_reference: jobId,
-      input_image_1_path: uploadedPaths[0] || null,
-      input_image_2_path: uploadedPaths[1] || null,
+      input_image_1_path: null,
+      input_image_2_path: null,
       output_image_path: null,
       error_message: null,
       email_status: 'pending',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      metadata: { source: 'supabase' },
+      created_at: now,
+      updated_at: now,
+      metadata: {
+        source: 'supabase',
+        legal_center_version: LEGAL_CENTER_VERSION,
+        legal_center_checkout: LEGAL_CENTER_CHECKOUT_MARKER,
+      },
     };
 
     try {
@@ -196,19 +193,6 @@ export async function createJob({
 
   const jobs = await readJobs();
   const jobId = crypto.randomUUID();
-  const jobUploadDir = join(uploadsDir, jobId);
-  await mkdir(jobUploadDir, { recursive: true });
-
-  const originals: JobOriginalFile[] = [];
-
-  for (const file of files) {
-    const safeName = `${Date.now()}-${Math.random().toString(36).slice(2)}-${sanitizeFileName(file.name) || 'image'}`;
-    const filePath = join(jobUploadDir, safeName);
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(filePath, buffer);
-    originals.push({ name: file.name, path: safeName, size: file.size });
-  }
-
   const now = new Date().toISOString();
   const job: JobRecord = {
     id: jobId,
@@ -219,17 +203,97 @@ export async function createJob({
     paymentStatus: 'pending',
     createdAt: now,
     updatedAt: now,
-    originals,
+    originals: [],
     generatedImage: null,
     paymentId: null,
     paymentUrl: null,
     externalReference: jobId,
-    metadata: { source: 'local-file-store' },
+    metadata: {
+      source: 'local-file-store',
+      legal_center_version: LEGAL_CENTER_VERSION,
+      legal_center_checkout: LEGAL_CENTER_CHECKOUT_MARKER,
+    },
+    mediaPurgedAt: null,
+    mediaRetentionStartedAt: null,
   };
 
   jobs[jobId] = job;
   await writeJobs(jobs);
   return job;
+}
+
+export async function attachJobInputImages(jobId: string, files: File[]) {
+  if (files.length < 1 || files.length > 2) {
+    throw new Error('Un job debe tener entre 1 y 2 imágenes de entrada.');
+  }
+
+  if (isSupabaseConfigured()) {
+    const bucket = getSupabaseUploadsBucket();
+    const uploadedPaths: string[] = [];
+
+    try {
+      for (const [index, file] of files.entries()) {
+        const fileExt = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '.jpg';
+        const safePath = `${jobId}/input-${index + 1}${fileExt}`;
+        const buffer = Buffer.from(await file.arrayBuffer());
+        await supabaseUpload(bucket, safePath, buffer, file.type || 'application/octet-stream');
+        uploadedPaths.push(safePath);
+      }
+
+      const supabase = getSupabaseAdmin();
+      const { data, error } = await supabase
+        .from('jobs')
+        .update({
+          input_image_1_path: uploadedPaths[0] || null,
+          input_image_2_path: uploadedPaths[1] || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', jobId)
+        .is('input_image_1_path', null)
+        .select('*')
+        .single();
+
+      if (error) {
+        throw createSupabaseOperationError(
+          'SUPABASE_INPUT_PATH_UPDATE_FAILED',
+          'No se pudieron asociar las imágenes al job.',
+          error,
+          500,
+        );
+      }
+
+      return mapJobRow(data);
+    } catch (error) {
+      if (error instanceof SupabaseBackendError) {
+        throw error;
+      }
+
+      throw createSupabaseOperationError(
+        'SUPABASE_INPUT_ATTACH_FAILED',
+        'No se pudieron guardar las imágenes del job.',
+        error,
+      );
+    }
+  }
+
+  const job = await getJob(jobId);
+  if (!job) {
+    throw new Error('No se encontró el job para guardar sus imágenes.');
+  }
+
+  const jobUploadDir = join(uploadsDir, jobId);
+  await mkdir(jobUploadDir, { recursive: true });
+  const originals: JobOriginalFile[] = [];
+
+  for (const file of files) {
+    const safeName = `${Date.now()}-${Math.random().toString(36).slice(2)}-${sanitizeFileName(file.name) || 'image'}`;
+    const filePath = join(jobUploadDir, safeName);
+    const buffer = Buffer.from(await file.arrayBuffer());
+    await writeFile(filePath, buffer);
+    originals.push({ name: file.name, path: safeName, size: file.size });
+  }
+
+  return updateJob(jobId, { originals });
 }
 
 export async function getJob(jobId: string) {
@@ -267,9 +331,30 @@ export async function updateJob(jobId: string, updates: Partial<JobRecord>) {
     if (updates.outputImageUrl !== undefined) payload.output_image_url = updates.outputImageUrl;
     if (updates.customerId !== undefined) payload.customer_id = updates.customerId;
     if (updates.sgxPassId !== undefined) payload.sgx_pass_id = updates.sgxPassId;
+    if (updates.mediaPurgedAt !== undefined) payload.media_purged_at = updates.mediaPurgedAt;
     if (updates.errorMessage !== undefined) payload.error_message = updates.errorMessage;
     if (updates.emailStatus !== undefined) payload.email_status = updates.emailStatus;
     if (updates.metadata !== undefined) payload.metadata = updates.metadata;
+
+    const marksRetentionStart = updates.status === 'completed' && Boolean(updates.outputImagePath);
+    if (marksRetentionStart) {
+      const retentionStartedAt = new Date().toISOString();
+      const { data: completedData, error: completedError } = await supabase
+        .from('jobs')
+        .update({ ...payload, media_retention_started_at: retentionStartedAt })
+        .eq('id', jobId)
+        .is('media_retention_started_at', null)
+        .select()
+        .maybeSingle();
+
+      if (completedError) {
+        throw new Error(completedError.message || 'No se pudo marcar el inicio de retención');
+      }
+
+      if (completedData) {
+        return mapJobRow(completedData);
+      }
+    }
 
     const { data, error } = await supabase.from('jobs').update(payload).eq('id', jobId).select().single();
 
@@ -292,6 +377,10 @@ export async function updateJob(jobId: string, updates: Partial<JobRecord>) {
     ...updates,
     updatedAt: new Date().toISOString(),
   };
+
+  if (updates.status === 'completed' && updates.outputImagePath && !current.mediaRetentionStartedAt) {
+    next.mediaRetentionStartedAt = next.updatedAt;
+  }
 
   jobs[jobId] = next;
   await writeJobs(jobs);

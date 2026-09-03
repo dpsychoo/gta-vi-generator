@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
+    "test:legal": "node scripts/legal-center-check.mjs",
     "preview": "astro preview",
     "astro": "astro"
   },

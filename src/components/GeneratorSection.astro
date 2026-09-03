@@ -1,6 +1,15 @@
 ---
 import { Image } from 'astro:assets';
 import viLogo from '../assets/vi.webp';
+import {
+  CONTRACTUAL_COPY,
+  LEGAL_PATHS,
+  LEGAL_PROVIDER,
+  PRIVACY_VERSION,
+  REFUND_POLICY_VERSION,
+  RETRACT_NOTICE,
+  TERMS_VERSION,
+} from '../lib/legal';
 ---
 
 <section class="generator-section" id="generator-section" aria-label="Generador de imágenes">
@@ -18,7 +27,34 @@ import viLogo from '../assets/vi.webp';
       </div>
     </div>
 
-    <form id="generator-form" class="generator-form" method="post" enctype="multipart/form-data">
+    <section class="purchase-summary" aria-labelledby="purchase-summary-title">
+      <h2 id="purchase-summary-title">Resumen antes del pago</h2>
+      <dl>
+        <div><dt>Servicio</dt><dd>{CONTRACTUAL_COPY.service}</dd></div>
+        <div><dt>Entrada</dt><dd>{CONTRACTUAL_COPY.input}</dd></div>
+        <div><dt>Resultado</dt><dd>{CONTRACTUAL_COPY.result}</dd></div>
+        <div><dt>Precio total</dt><dd>$2.990 CLP</dd></div>
+        <div><dt>Medio de pago</dt><dd>{CONTRACTUAL_COPY.payment}</dd></div>
+        <div><dt>Inicio del servicio</dt><dd>{CONTRACTUAL_COPY.start}</dd></div>
+        <div><dt>Proveedor</dt><dd>{LEGAL_PROVIDER.company} · RUT {LEGAL_PROVIDER.rut}</dd></div>
+        <div><dt>Soporte</dt><dd><a href={`mailto:${LEGAL_PROVIDER.supportEmail}`}>{LEGAL_PROVIDER.supportEmail}</a></dd></div>
+      </dl>
+    </section>
+
+    <div class="retract-notice" role="note" aria-labelledby="retract-notice-title">
+      <strong id="retract-notice-title">Aviso importante antes del pago</strong>
+      <p>{RETRACT_NOTICE}</p>
+    </div>
+
+    <form
+      id="generator-form"
+      class="generator-form"
+      method="post"
+      enctype="multipart/form-data"
+      data-terms-version={TERMS_VERSION}
+      data-privacy-version={PRIVACY_VERSION}
+      data-refund-policy-version={REFUND_POLICY_VERSION}
+    >
       <label class="upload-field" for="image-upload">
         <span class="upload-icon">+</span>
         <span>Adjuntar imágenes</span>
@@ -32,10 +68,30 @@ import viLogo from '../assets/vi.webp';
         <input id="email-input" name="email" type="email" placeholder="Ingresa tu Email" required />
       </label>
 
+      <div class="legal-consent">
+        <div class="legal-consent__row">
+          <input
+            id="legal-consent"
+            name="legalAccepted"
+            type="checkbox"
+            value="true"
+            required
+            aria-describedby="legal-consent-copy legal-consent-links"
+          />
+          <label for="legal-consent" id="legal-consent-copy">
+            He leído y acepto los <a href={LEGAL_PATHS.terms} target="_blank" rel="noopener">Términos del Servicio</a> y la <a href={LEGAL_PATHS.privacy} target="_blank" rel="noopener">Política de Privacidad</a>. Solicito que el servicio digital personalizado comience inmediatamente una vez confirmado el pago y reconozco que SGODX SpA excluye el derecho a retracto para este servicio en los términos informados antes de la compra.
+          </label>
+        </div>
+        <p id="legal-consent-links" class="legal-consent__links">
+          Consulta también la <a href={LEGAL_PATHS.refunds} target="_blank" rel="noopener">Política de Reembolsos</a>.
+        </p>
+        <p id="legal-consent-error" class="legal-consent__error" role="alert" hidden>Debes aceptar las condiciones antes de continuar al pago.</p>
+      </div>
+
       <button type="submit" class="generate-button">
-  <span class="generate-button__main">Generar US$3</span>
-  <span class="generate-button__sub">Cobro: $2.990 CLP</span>
-</button>
+        <span class="generate-button__main">$2.990 CLP</span>
+        <span class="generate-button__sub">Pagar con Mercado Pago</span>
+      </button>
 
     </form>
   </div>
@@ -46,6 +102,8 @@ import viLogo from '../assets/vi.webp';
   const fileList = document.getElementById('file-list');
   const form = document.getElementById('generator-form');
   const generatorSection = document.getElementById('generator-section');
+  const legalConsentInput = document.getElementById('legal-consent');
+  const legalConsentError = document.getElementById('legal-consent-error');
 
   if (generatorSection) {
     const observer = new IntersectionObserver(
@@ -89,9 +147,23 @@ import viLogo from '../assets/vi.webp';
         return;
       }
 
+      if (!legalConsentInput?.checked) {
+        if (legalConsentError) legalConsentError.hidden = false;
+        legalConsentInput?.focus();
+        return;
+      }
+
+      if (legalConsentError) legalConsentError.hidden = true;
+
       const payload = new FormData();
       payload.append('email', email);
       files.forEach((file) => payload.append('images', file));
+      payload.append('legalAccepted', 'true');
+      payload.append('immediateExecutionAccepted', 'true');
+      payload.append('retractExclusionAcknowledged', 'true');
+      payload.append('termsVersion', form.dataset.termsVersion || '');
+      payload.append('privacyVersion', form.dataset.privacyVersion || '');
+      payload.append('refundPolicyVersion', form.dataset.refundPolicyVersion || '');
 
       const paymentErrorMessage = 'No se pudo iniciar el pago. Inténtalo nuevamente.';
 

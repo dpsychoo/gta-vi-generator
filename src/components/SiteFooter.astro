@@ -1,0 +1,113 @@
+---
+import {
+	LEGAL_PATHS,
+	LEGAL_PROVIDER,
+} from '../lib/legal';
+---
+
+<footer class="site-footer" aria-label="Información legal y de contacto">
+  <div class="site-footer__inner">
+    <div class="site-footer__identity">
+      <strong>{LEGAL_PROVIDER.company}</strong>
+      <span>RUT {LEGAL_PROVIDER.rut}</span>
+      <a href={`mailto:${LEGAL_PROVIDER.supportEmail}`}>{LEGAL_PROVIDER.supportEmail}</a>
+    </div>
+
+    <nav class="site-footer__links" aria-label="Enlaces legales">
+      <a href={LEGAL_PATHS.center}>Legal</a>
+      <a href={LEGAL_PATHS.terms}>Términos</a>
+      <a href={LEGAL_PATHS.privacy}>Privacidad</a>
+      <a href={LEGAL_PATHS.refunds}>Reembolsos</a>
+    </nav>
+
+    <p class="site-footer__disclaimer">
+      Esta experiencia es independiente. SGODX no está afiliado, patrocinado ni respaldado por Rockstar Games o Take-Two Interactive.
+    </p>
+  </div>
+</footer>
+
+<style>
+  .site-footer {
+    position: relative;
+    z-index: 10;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    background:
+      radial-gradient(circle at 18% 0%, rgba(255, 132, 178, 0.11), transparent 33%),
+      linear-gradient(180deg, #10121b 0%, #080910 100%);
+    color: rgba(246, 244, 255, 0.82);
+    font-family: 'Poppins', sans-serif;
+  }
+
+  .site-footer__inner {
+    width: min(1120px, calc(100% - 40px));
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(240px, 1.6fr);
+    gap: 28px;
+    align-items: start;
+    padding: 28px 0 30px;
+  }
+
+  .site-footer__identity,
+  .site-footer__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    align-items: center;
+  }
+
+  .site-footer__identity strong {
+    color: #ffffff;
+    letter-spacing: 0.05em;
+  }
+
+  .site-footer__identity span,
+  .site-footer__identity a,
+  .site-footer__links a {
+    color: rgba(246, 244, 255, 0.68);
+    font-size: 0.78rem;
+  }
+
+  .site-footer a {
+    text-decoration: none;
+  }
+
+  .site-footer a:hover {
+    color: #ffd69b;
+  }
+
+  .site-footer a:focus-visible {
+    outline: 2px solid #ffe29b;
+    outline-offset: 4px;
+    border-radius: 3px;
+  }
+
+  .site-footer__links {
+    justify-content: flex-start;
+  }
+
+  .site-footer__links a {
+    color: #ffd1e7;
+    font-weight: 700;
+  }
+
+  .site-footer__disclaimer {
+    margin: 0;
+    color: rgba(246, 244, 255, 0.56);
+    font-size: 0.72rem;
+    line-height: 1.55;
+  }
+
+  @media (max-width: 760px) {
+    .site-footer__inner {
+      width: min(100% - 32px, 560px);
+      grid-template-columns: 1fr;
+      gap: 18px;
+      padding: 24px 0 28px;
+    }
+
+    .site-footer__links {
+      gap: 9px 18px;
+    }
+  }
+</style>

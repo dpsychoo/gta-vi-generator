@@ -2,12 +2,19 @@ import { createElement } from 'react';
 import { render } from 'react-email';
 import { Resend } from 'resend';
 import { GtaResultEmail } from '../emails/GtaResultEmail';
+import { PurchaseConfirmationEmail } from '../emails/PurchaseConfirmationEmail';
 import { decryptJobAccessToken } from './job-access';
+import {
+  getLegalAcceptanceByJobId,
+  updateLegalAcceptanceConfirmation,
+} from './legal-acceptance';
+import { LEGAL_PATHS } from './legal';
 import { getJob, updateJob } from './job-store';
-import { getSgxPassById } from './sgx-pass';
+import { getSgxPassById, type CustomerRecord, type SgxOrderRecord } from './sgx-pass';
 import { getAppBaseUrl, getResendApiKey, getResendFromEmail } from './server/env';
 
 const emailSendInFlight = new Set<string>();
+const purchaseConfirmationInFlight = new Set<string>();
 
 function getEmailUrls(job: { id: string; accessTokenEncrypted?: string | null }) {
   if (!job.accessTokenEncrypted) {
@@ -118,5 +125,97 @@ export async function sendJobResultEmail(jobId: string) {
     return { ok: false, skipped: false };
   } finally {
     emailSendInFlight.delete(jobId);
+  }
+}
+
+function getLegalEmailUrls() {
+  const baseUrl = new URL(getAppBaseUrl());
+  const localHosts = new Set(['localhost', '127.0.0.1', '::1']);
+  if (baseUrl.protocol !== 'https:' || localHosts.has(baseUrl.hostname)) {
+    throw new Error('APP_BASE_URL debe ser una URL HTTPS pública para enviar confirmaciones.');
+  }
+
+  return {
+    legalUrl: new URL(LEGAL_PATHS.center, baseUrl).toString(),
+    termsUrl: new URL(LEGAL_PATHS.terms, baseUrl).toString(),
+    privacyUrl: new URL(LEGAL_PATHS.privacy, baseUrl).toString(),
+    refundsUrl: new URL(LEGAL_PATHS.refunds, baseUrl).toString(),
+  };
+}
+
+export async function sendPurchaseConfirmationEmail({
+  jobId,
+  customer,
+  order,
+}: {
+  jobId: string;
+  customer: CustomerRecord;
+  order: SgxOrderRecord;
+}) {
+  if (purchaseConfirmationInFlight.has(jobId)) {
+    return { ok: false, skipped: true, reason: 'in_flight' as const };
+  }
+
+  purchaseConfirmationInFlight.add(jobId);
+  let eligibleForFailureUpdate = false;
+
+  try {
+    const job = await getJob(jobId);
+    const acceptance = await getLegalAcceptanceByJobId(jobId);
+    if (!job || !acceptance) {
+      throw new Error('No se encontró el job o la aceptación legal para la confirmación.');
+    }
+
+    if (acceptance.confirmationEmailStatus === 'sent') {
+      return { ok: true, skipped: true, reason: 'already_sent' as const };
+    }
+
+    eligibleForFailureUpdate = true;
+    const apiKey = getResendApiKey();
+    const fromEmail = getResendFromEmail();
+    if (!apiKey || !fromEmail) {
+      throw new Error('Resend no está configurado');
+    }
+
+    const resend = new Resend(apiKey);
+    const urls = getLegalEmailUrls();
+    const { error } = await resend.emails.send({
+      from: fromEmail,
+      to: [customer.email],
+      subject: 'Confirmación de compra SGODX',
+      html: await render(createElement(PurchaseConfirmationEmail, {
+        customerEmail: customer.email,
+        orderId: order.id,
+        paymentId: order.mercadopagoPaymentId,
+        approvedAt: formatCreatedAt(order.approvedAt || order.createdAt),
+        termsVersion: acceptance.termsVersion,
+        privacyVersion: acceptance.privacyVersion,
+        refundPolicyVersion: acceptance.refundPolicyVersion,
+        ...urls,
+      })),
+    }, {
+      idempotencyKey: `contract-confirmation/${job.id}`,
+    });
+
+    if (error) {
+      throw new Error('Resend rechazó el envío de la confirmación.');
+    }
+
+    await updateLegalAcceptanceConfirmation(job.id, 'sent', new Date().toISOString());
+    console.info('[resend] purchase_confirmation_success');
+    return { ok: true, skipped: false };
+  } catch {
+    if (eligibleForFailureUpdate) {
+      try {
+        await updateLegalAcceptanceConfirmation(jobId, 'failed');
+      } catch {
+        // El estado del pago y la generación no dependen de este correo secundario.
+      }
+    }
+
+    console.error('[resend] purchase_confirmation_failed');
+    return { ok: false, skipped: false };
+  } finally {
+    purchaseConfirmationInFlight.delete(jobId);
   }
 }
