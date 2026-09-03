@@ -5,10 +5,11 @@ import resultFondo from '../assets/resultFondo.avif';
 const { searchParams } = Astro.url;
 const jobId = searchParams.get('jobId');
 const accessToken = searchParams.get('token');
+const isDev = import.meta.env.DEV;
 ---
 
 <Layout>
-  <main class="result-shell" style={`--result-bg: url("${resultFondo.src}")`}>
+  <main class="result-shell" data-runtime-env={isDev ? 'development' : 'production'} data-preview-pass-code={isDev ? 'SGX-DEMO-7K4M-92QH' : undefined} style={`--result-bg: url("${resultFondo.src}")`}>
     <div class="result-card">
       <div class="result-header">
         <span class="eyebrow">GTA VI</span>
@@ -65,17 +66,39 @@ const accessToken = searchParams.get('token');
         </div>
       </section>
 
+      <section class="completed-content" id="completedContent" hidden aria-live="polite">
+        <div class="completed-intro">
+          <div class="completed-badge"><span aria-hidden="true">✓</span> IMAGEN LISTA</div>
+          <h2>TU RESULTADO ESTÁ LISTO</h2>
+          <p>Tu imagen se generó correctamente.</p>
+        </div>
+
       <div class="result-image-wrap" id="imageWrap" hidden>
         <img id="resultImage" alt="Imagen generada" />
+        <div class="preview-image" id="previewImage" hidden role="img" aria-label="Imagen generada de preview">
+          <span>SGODX</span>
+          <strong>VI</strong>
+          <small>VICE CITY PORTRAIT / DEMO RENDER</small>
+        </div>
       </div>
 
       <div class="result-actions">
-        <button id="downloadBtn" class="download-btn" type="button" hidden>Descargar imagen</button>
+        <button id="downloadBtn" class="download-btn" type="button" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v2h14v-2" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" /></svg>
+          <span>DESCARGAR IMAGEN</span>
+        </button>
       </div>
 
       <section class="sgx-pass-panel" id="sgxPassPanel" hidden aria-live="polite">
-        <div class="sgx-pass-eyebrow">SGX VI PASS ACTIVATED</div>
-        <div class="sgx-pass-code" id="sgxPassCode"></div>
+        <div class="sgx-pass-heading">
+          <div class="sgx-pass-eyebrow">SGX PASS</div>
+          <p class="sgx-pass-subtitle">TU IDENTIDAD EN SGODX</p>
+        </div>
+        <div class="sgx-pass-code-shell">
+          <div class="sgx-pass-code" id="sgxPassCode"></div>
+          <button id="copySgxPassBtn" class="sgx-pass-copy" type="button" hidden>COPIAR</button>
+          <span id="copySgxPassFeedback" class="sgx-pass-copy-feedback" role="status" aria-live="polite"></span>
+        </div>
         <div class="sgx-pass-grid">
           <div>
             <span class="sgx-pass-label">ROAD TO VI</span>
@@ -86,8 +109,18 @@ const accessToken = searchParams.get('token');
             <strong class="sgx-pass-value" id="sgxPassStatus"></strong>
           </div>
         </div>
-        <p class="sgx-pass-note">Guarda este código. Volverás a necesitarlo.</p>
-        <p class="sgx-pass-motto">ONE PASS. MULTIPLE MISSIONS.</p>
+        <p class="sgx-pass-note"><strong>Guarda tu SGX PASS.</strong> Será tu código dentro del ecosistema SGODX.</p>
+      </section>
+
+        <div class="completed-email-note">
+          <span class="completed-email-icon" aria-hidden="true">✦</span>
+          <div>
+            <strong>Tu resultado también llegará a tu email</strong>
+            <span>Puedes cerrar esta pestaña si quieres. Te enviaremos un enlace para volver a tu resultado.</span>
+          </div>
+        </div>
+
+        <div class="completed-powered">POWERED BY <span>SGODX</span></div>
       </section>
     </div>
   </main>
@@ -95,19 +128,28 @@ const accessToken = searchParams.get('token');
   <script is:inline>
     const queryJobId = new URLSearchParams(window.location.search).get('jobId');
     const queryAccessToken = new URLSearchParams(window.location.search).get('token');
+    const resultShell = document.querySelector('.result-shell');
+    const runtimeIsDev = resultShell?.dataset.runtimeEnv === 'development';
+    const devPreviewPassCode = resultShell?.dataset.previewPassCode || '';
+    const previewLoaderEnabled = runtimeIsDev && new URLSearchParams(window.location.search).get('previewLoader') === '1';
+    const previewLoaderComplete = previewLoaderEnabled && new URLSearchParams(window.location.search).get('previewComplete') === '1';
     const statusPanel = document.getElementById('statusPanel');
     const generationLoader = document.getElementById('generationLoader');
     const generationProgress = document.getElementById('generationProgress');
     const generationProgressBar = document.getElementById('generationProgressBar');
     const generationProgressValue = document.getElementById('generationProgressValue');
     const generationStage = document.getElementById('generationStage');
+    const completedContent = document.getElementById('completedContent');
     const imageWrap = document.getElementById('imageWrap');
     const imageEl = document.getElementById('resultImage');
+    const previewImage = document.getElementById('previewImage');
     const downloadBtn = document.getElementById('downloadBtn');
     const sgxPassPanel = document.getElementById('sgxPassPanel');
     const sgxPassCode = document.getElementById('sgxPassCode');
     const sgxPassEligibility = document.getElementById('sgxPassEligibility');
     const sgxPassStatus = document.getElementById('sgxPassStatus');
+    const copySgxPassBtn = document.getElementById('copySgxPassBtn');
+    const copySgxPassFeedback = document.getElementById('copySgxPassFeedback');
 
     const statusLabels = {
       pending_payment: 'Pendiente de pago',
@@ -124,6 +166,7 @@ const accessToken = searchParams.get('token');
     let visualProgressTimer = null;
     let stageMessagesTimer = null;
     let loaderExitTimer = null;
+    let copyFeedbackTimer = null;
     let visualProgressValue = 0;
     let stageMessageIndex = 0;
     let generationLoaderVisible = false;
@@ -141,6 +184,16 @@ const accessToken = searchParams.get('token');
       statusPanel.classList.add(`status-${status}`);
       statusPanel.dataset.status = status;
       statusPanel.textContent = text;
+    }
+
+    function showCompletedContent() {
+      completedContent.hidden = false;
+      statusPanel.hidden = true;
+    }
+
+    function hideCompletedContent() {
+      completedContent.hidden = true;
+      statusPanel.hidden = false;
     }
 
     function setVisualProgress(value) {
@@ -274,11 +327,17 @@ const accessToken = searchParams.get('token');
         window.clearTimeout(loaderExitTimer);
         loaderExitTimer = null;
       }
+      if (copyFeedbackTimer !== null) {
+        window.clearTimeout(copyFeedbackTimer);
+        copyFeedbackTimer = null;
+      }
     }
 
     function hideResult() {
       imageWrap.hidden = true;
       downloadBtn.hidden = true;
+      imageEl.hidden = true;
+      previewImage.hidden = true;
       imageEl.removeAttribute('src');
       imageEl.onload = null;
       imageEl.onerror = null;
@@ -286,10 +345,16 @@ const accessToken = searchParams.get('token');
     }
 
     function hideSgxPass() {
+      if (copyFeedbackTimer !== null) {
+        window.clearTimeout(copyFeedbackTimer);
+        copyFeedbackTimer = null;
+      }
       sgxPassPanel.hidden = true;
       sgxPassCode.textContent = '';
       sgxPassEligibility.textContent = '';
       sgxPassStatus.textContent = '';
+      copySgxPassBtn.hidden = true;
+      copySgxPassFeedback.textContent = '';
     }
 
     function showSgxPass(pass) {
@@ -303,8 +368,33 @@ const accessToken = searchParams.get('token');
       sgxPassCode.textContent = code;
       sgxPassEligibility.textContent = status === 'active' ? 'ELIGIBLE' : 'REVIEW';
       sgxPassStatus.textContent = status === 'active' ? '● ACTIVE' : `● ${status.toUpperCase()}`;
+      copySgxPassBtn.hidden = false;
+      copySgxPassFeedback.textContent = '';
       sgxPassPanel.hidden = false;
     }
+
+    async function copySgxPass() {
+      const passCode = sgxPassCode.textContent.trim();
+      if (!passCode) return;
+
+      if (copyFeedbackTimer !== null) {
+        window.clearTimeout(copyFeedbackTimer);
+      }
+
+      try {
+        await navigator.clipboard.writeText(passCode);
+        copySgxPassFeedback.textContent = 'COPIADO ✓';
+      } catch {
+        copySgxPassFeedback.textContent = 'NO SE PUDO COPIAR';
+      }
+
+      copyFeedbackTimer = window.setTimeout(() => {
+        copySgxPassFeedback.textContent = '';
+        copyFeedbackTimer = null;
+      }, 1800);
+    }
+
+    copySgxPassBtn.addEventListener('click', copySgxPass);
 
     function stopPolling() {
       pollingStopped = true;
@@ -328,6 +418,8 @@ const accessToken = searchParams.get('token');
       const imageUrl = `/api/image?jobId=${encodeURIComponent(queryJobId)}&token=${encodeURIComponent(queryAccessToken)}`;
       imageWrap.hidden = true;
       downloadBtn.hidden = true;
+      imageEl.hidden = false;
+      previewImage.hidden = true;
 
       imageEl.onload = () => {
         imageWrap.hidden = false;
@@ -351,6 +443,15 @@ const accessToken = searchParams.get('token');
       };
     }
 
+    function showPreviewCompletedResult() {
+      hideResult();
+      imageEl.hidden = true;
+      previewImage.hidden = false;
+      imageWrap.hidden = false;
+      downloadBtn.hidden = false;
+      downloadBtn.onclick = () => {};
+    }
+
     function applyJobState(job) {
       const status = typeof job?.status === 'string' ? job.status : 'unknown';
       const label = statusLabels[status] || 'Revisando tu pedido...';
@@ -359,6 +460,7 @@ const accessToken = searchParams.get('token');
       if (status === 'completed') {
         stopPolling();
         completeVisualProgress(() => {
+          showCompletedContent();
           showSgxPass(job.sgxPass);
           showCompletedResult();
         });
@@ -368,12 +470,14 @@ const accessToken = searchParams.get('token');
       if (status === 'failed') {
         stopPolling();
         hideGenerationLoader();
+        hideCompletedContent();
         hideSgxPass();
         hideResult();
         return;
       }
 
       if (status === 'processing') {
+        hideCompletedContent();
         hideSgxPass();
         hideResult();
         showGenerationLoader();
@@ -382,6 +486,7 @@ const accessToken = searchParams.get('token');
       }
 
       hideGenerationLoader();
+      hideCompletedContent();
       hideSgxPass();
       hideResult();
       schedulePolling();
@@ -408,7 +513,19 @@ const accessToken = searchParams.get('token');
       }
     }
 
-    if (queryJobId && queryAccessToken) {
+    if (previewLoaderEnabled) {
+      setStatus('processing', 'Preview del loader');
+      showGenerationLoader();
+
+      if (previewLoaderComplete) {
+        setVisualProgress(93);
+        completeVisualProgress(() => {
+          showCompletedContent();
+          showPreviewCompletedResult();
+          showSgxPass({ code: devPreviewPassCode, status: 'active' });
+        });
+      }
+    } else if (queryJobId && queryAccessToken) {
       poll();
     }
 
@@ -931,6 +1048,390 @@ const accessToken = searchParams.get('token');
     .generation-loader.is-leaving {
       animation: none;
       opacity: 0;
+    }
+  }
+  .completed-content[hidden] {
+    display: none;
+  }
+
+  .completed-content {
+    width: 100%;
+    min-width: 0;
+    animation: completedContentIn 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .completed-intro {
+    padding: 8px 0 4px;
+    text-align: center;
+  }
+
+  .completed-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #ffe18f;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: clamp(0.7rem, 2vw, 0.82rem);
+    font-weight: 900;
+    letter-spacing: 0.18em;
+    text-shadow: 0 0 16px rgba(255, 205, 110, 0.7);
+  }
+
+  .completed-badge span {
+    display: grid;
+    width: 22px;
+    height: 22px;
+    place-items: center;
+    border: 1px solid rgba(255, 225, 143, 0.7);
+    border-radius: 50%;
+    background: rgba(255, 209, 116, 0.1);
+    font-size: 0.9rem;
+  }
+
+  .completed-intro h2 {
+    margin: 18px 0 8px;
+    color: #ffffff;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: clamp(1.9rem, 5vw, 3.2rem);
+    font-weight: 900;
+    letter-spacing: -0.045em;
+    line-height: 1;
+    text-shadow: 0 3px 0 rgba(76, 32, 113, 0.66), 0 0 22px rgba(255, 114, 200, 0.28);
+  }
+
+  .completed-intro p {
+    margin: 0;
+    color: rgba(237, 242, 255, 0.72);
+    font-size: clamp(0.9rem, 2.4vw, 1.08rem);
+  }
+
+  .completed-content .result-image-wrap {
+    margin-top: clamp(28px, 5vw, 42px);
+    border-color: rgba(255, 169, 216, 0.26);
+    background: linear-gradient(145deg, rgba(29, 18, 43, 0.95), rgba(5, 8, 16, 0.98));
+    box-shadow: 0 20px 54px rgba(5, 2, 18, 0.42), 0 0 34px rgba(233, 70, 173, 0.1);
+  }
+
+  .completed-content .result-image-wrap:not([hidden]) {
+    animation: completedImageIn 650ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both;
+  }
+
+  .completed-content #resultImage {
+    max-height: min(70dvh, 760px);
+  }
+
+  .preview-image[hidden] {
+    display: none;
+  }
+
+  .preview-image {
+    position: relative;
+    display: grid;
+    min-height: clamp(300px, 50vw, 520px);
+    place-items: center;
+    overflow: hidden;
+    padding: 36px;
+    background:
+      linear-gradient(145deg, rgba(255, 104, 192, 0.1), transparent 40%),
+      radial-gradient(circle at 70% 25%, rgba(255, 179, 99, 0.68), transparent 5%, rgba(255, 116, 188, 0.22) 20%, transparent 48%),
+      linear-gradient(155deg, #30205a 0%, #171437 45%, #081322 100%);
+    color: #ffffff;
+    isolation: isolate;
+  }
+
+  .preview-image::before,
+  .preview-image::after {
+    position: absolute;
+    content: '';
+    pointer-events: none;
+  }
+
+  .preview-image::before {
+    inset: 11%;
+    border: 1px solid rgba(255, 231, 184, 0.32);
+    border-radius: 50% 48% 42% 56%;
+    box-shadow: 0 0 46px rgba(255, 139, 188, 0.24), inset 0 0 44px rgba(90, 123, 255, 0.2);
+    transform: rotate(-12deg);
+  }
+
+  .preview-image::after {
+    inset: 0;
+    z-index: 1;
+    background: repeating-linear-gradient(0deg, transparent 0 8px, rgba(255, 255, 255, 0.04) 9px, transparent 10px 14px);
+    opacity: 0.65;
+  }
+
+  .preview-image span,
+  .preview-image strong,
+  .preview-image small {
+    position: relative;
+    z-index: 2;
+  }
+
+  .preview-image span {
+    margin-bottom: -10px;
+    color: #ffd89c;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: clamp(0.7rem, 2vw, 0.88rem);
+    font-weight: 800;
+    letter-spacing: 0.28em;
+  }
+
+  .preview-image strong {
+    color: transparent;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: clamp(8rem, 25vw, 15rem);
+    font-weight: 900;
+    letter-spacing: -0.16em;
+    line-height: 0.72;
+    text-indent: -0.16em;
+    -webkit-text-stroke: clamp(2px, 0.5vw, 6px) rgba(255, 188, 224, 0.82);
+    text-shadow: 0 0 30px rgba(255, 91, 187, 0.58), 0 0 70px rgba(77, 103, 255, 0.48);
+  }
+
+  .preview-image small {
+    margin-top: 16px;
+    color: rgba(255, 234, 215, 0.7);
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: clamp(0.58rem, 1.6vw, 0.72rem);
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-align: center;
+  }
+
+  .completed-content .result-actions {
+    justify-content: center;
+    margin-top: 24px;
+  }
+
+  .completed-content .download-btn {
+    display: inline-flex;
+    min-height: 52px;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    padding: 0.95rem clamp(1.25rem, 5vw, 1.8rem);
+    border: 1px solid rgba(255, 201, 231, 0.3);
+    background: linear-gradient(110deg, #d83a9f 0%, #ef765d 48%, #5a38e9 100%);
+    box-shadow: 0 10px 28px rgba(112, 42, 174, 0.28), 0 0 22px rgba(255, 110, 193, 0.2);
+    font-size: clamp(0.78rem, 2.2vw, 0.9rem);
+    letter-spacing: 0.05em;
+    transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+  }
+
+  .completed-content .download-btn svg {
+    width: 19px;
+    height: 19px;
+    flex: 0 0 auto;
+  }
+
+  .completed-content .download-btn:hover {
+    transform: translateY(-2px);
+    filter: saturate(1.08);
+    box-shadow: 0 13px 30px rgba(112, 42, 174, 0.34), 0 0 28px rgba(255, 110, 193, 0.3);
+  }
+
+  .completed-content .download-btn:focus-visible,
+  .sgx-pass-copy:focus-visible {
+    outline: 2px solid #ffe29b;
+    outline-offset: 4px;
+  }
+
+  .completed-content .sgx-pass-panel {
+    margin-top: clamp(42px, 7vw, 64px);
+    padding: clamp(22px, 5vw, 32px);
+    border-color: rgba(255, 148, 210, 0.36);
+    background:
+      radial-gradient(circle at 90% 0%, rgba(255, 120, 190, 0.16), transparent 38%),
+      linear-gradient(145deg, rgba(54, 21, 63, 0.96), rgba(12, 12, 28, 0.98));
+    box-shadow: 0 20px 52px rgba(0, 0, 0, 0.28), 0 0 30px rgba(219, 73, 171, 0.1);
+  }
+
+  .sgx-pass-heading {
+    text-align: center;
+  }
+
+  .sgx-pass-subtitle {
+    margin: 8px 0 0;
+    color: rgba(255, 207, 232, 0.67);
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+  }
+
+  .sgx-pass-code-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: center;
+    margin-top: 24px;
+    padding: 16px 17px;
+    border: 1px solid rgba(255, 189, 226, 0.26);
+    border-radius: 15px;
+    background: linear-gradient(110deg, rgba(8, 11, 25, 0.9), rgba(37, 17, 49, 0.72));
+    box-shadow: inset 0 0 24px rgba(255, 105, 189, 0.06), 0 0 22px rgba(255, 117, 199, 0.08);
+  }
+
+  .completed-content .sgx-pass-code {
+    margin: 0;
+    min-width: 0;
+    color: #ffffff;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: clamp(1rem, 3.8vw, 1.65rem);
+    letter-spacing: clamp(0.06em, 1.2vw, 0.13em);
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+    text-shadow: 0 0 16px rgba(255, 151, 214, 0.34);
+  }
+
+  .sgx-pass-copy {
+    min-height: 44px;
+    padding: 0.7rem 0.95rem;
+    border: 1px solid rgba(255, 208, 231, 0.3);
+    border-radius: 999px;
+    background: rgba(255, 146, 204, 0.1);
+    color: #ffe5f3;
+    cursor: pointer;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    transition: background 180ms ease, transform 180ms ease;
+  }
+
+  .sgx-pass-copy:hover {
+    background: rgba(255, 146, 204, 0.2);
+    transform: translateY(-1px);
+  }
+
+  .sgx-pass-copy-feedback {
+    grid-column: 1 / -1;
+    min-height: 1.2em;
+    color: #ffe09b;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-align: right;
+  }
+
+  .completed-content .sgx-pass-grid {
+    margin-top: 22px;
+  }
+
+  .completed-content .sgx-pass-note {
+    margin: 22px 0 0;
+    color: rgba(237, 242, 255, 0.69);
+    font-size: clamp(0.8rem, 2.2vw, 0.95rem);
+    line-height: 1.55;
+  }
+
+  .completed-content .sgx-pass-note strong {
+    color: #ffc6e1;
+  }
+
+  .completed-email-note {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    margin: clamp(30px, 6vw, 48px) auto 0;
+    padding: 16px 17px;
+    border: 1px solid rgba(255, 217, 148, 0.24);
+    border-radius: 14px;
+    background: rgba(18, 8, 39, 0.48);
+    color: rgba(255, 240, 250, 0.7);
+    font-size: clamp(0.76rem, 2vw, 0.86rem);
+    line-height: 1.45;
+  }
+
+  .completed-email-note strong,
+  .completed-email-note span:not(.completed-email-icon) {
+    display: block;
+  }
+
+  .completed-email-note strong {
+    color: #ffe4a7;
+    font-size: 0.8rem;
+    letter-spacing: 0.03em;
+  }
+
+  .completed-email-icon {
+    color: #ffd777;
+    font-size: 1.15rem;
+    line-height: 1.1;
+    text-shadow: 0 0 14px rgba(255, 215, 119, 0.8);
+  }
+
+  .completed-powered {
+    margin: 30px 0 4px;
+    color: rgba(255, 235, 247, 0.48);
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    text-align: center;
+  }
+
+  .completed-powered span {
+    color: #ff9ed0;
+    text-shadow: 0 0 14px rgba(255, 113, 197, 0.42);
+  }
+
+  .completed-content .sgx-pass-panel:not([hidden]) {
+    animation: completedPassIn 620ms cubic-bezier(0.22, 1, 0.36, 1) 160ms both;
+  }
+
+  @keyframes completedContentIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes completedImageIn {
+    from { opacity: 0; transform: scale(0.992); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes completedPassIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 640px) {
+    .completed-content .result-actions {
+      margin-top: 20px;
+    }
+
+    .completed-content .download-btn {
+      width: 100%;
+    }
+
+    .preview-image {
+      min-height: clamp(260px, 72vw, 380px);
+      padding: 24px;
+    }
+
+    .sgx-pass-code-shell {
+      gap: 10px;
+      padding: 14px;
+    }
+
+    .sgx-pass-copy {
+      padding-inline: 0.8rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .completed-content,
+    .completed-content .result-image-wrap:not([hidden]),
+    .completed-content .sgx-pass-panel:not([hidden]) {
+      animation: none;
+    }
+
+    .completed-content .download-btn,
+    .sgx-pass-copy {
+      transition: none;
     }
   }
 </style>
