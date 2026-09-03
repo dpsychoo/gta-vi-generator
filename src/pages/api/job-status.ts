@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { verifyJobAccess } from '../../lib/job-access';
 import { getJob } from '../../lib/job-store';
+import { getSgxPassById } from '../../lib/sgx-pass';
 
 export const prerender = false;
 
@@ -31,13 +32,25 @@ export const GET: APIRoute = async ({ url }) => {
     return unavailable();
   }
 
+  let sgxPass: { code: string; status: 'active' | 'suspended' | 'revoked' } | null = null;
+  if (job.status === 'completed' && job.sgxPassId) {
+    try {
+      const pass = await getSgxPassById(job.sgxPassId);
+      if (pass) {
+        sgxPass = { code: pass.publicCode, status: pass.status };
+      }
+    } catch {
+      // La vista del resultado sigue funcionando aunque falle la consulta secundaria del PASS.
+    }
+  }
+
   const safePayload = {
-    id: job.id,
     status: job.status,
     payment_status: job.paymentStatus,
     resultUrl: job.status === 'completed'
       ? `/api/image?jobId=${encodeURIComponent(job.id)}&token=${encodeURIComponent(accessToken)}`
       : null,
+    sgxPass,
     error: job.status === 'failed' ? (job.errorMessage || 'La generación falló') : null,
   };
 

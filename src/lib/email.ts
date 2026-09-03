@@ -1,48 +1,52 @@
+import { createElement } from 'react';
+import { render } from 'react-email';
 import { Resend } from 'resend';
+import { GtaResultEmail } from '../emails/GtaResultEmail';
 import { decryptJobAccessToken } from './job-access';
 import { getJob, updateJob } from './job-store';
+import { getSgxPassById } from './sgx-pass';
 import { getAppBaseUrl, getResendApiKey, getResendFromEmail } from './server/env';
 
 const emailSendInFlight = new Set<string>();
 
-function escapeHtml(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
-function getResultUrl(job: { id: string; accessTokenEncrypted?: string | null }) {
+function getEmailUrls(job: { id: string; accessTokenEncrypted?: string | null }) {
   if (!job.accessTokenEncrypted) {
     throw new Error('El job no tiene capability cifrada.');
   }
 
   const accessToken = decryptJobAccessToken(job.accessTokenEncrypted);
   const baseUrl = new URL(getAppBaseUrl());
-  if (baseUrl.protocol !== 'http:' && baseUrl.protocol !== 'https:') {
-    throw new Error('APP_BASE_URL inválida');
+  const localHosts = new Set(['localhost', '127.0.0.1', '::1']);
+  if (baseUrl.protocol !== 'https:' || localHosts.has(baseUrl.hostname)) {
+    throw new Error('APP_BASE_URL debe ser una URL HTTPS pública para enviar resultados.');
   }
 
-  const resultUrl = new URL('/resultado', baseUrl);
-  resultUrl.searchParams.set('jobId', job.id);
-  resultUrl.searchParams.set('token', accessToken);
-  return resultUrl.toString();
+  const downloadUrl = new URL('/resultado', baseUrl);
+  downloadUrl.searchParams.set('jobId', job.id);
+  downloadUrl.searchParams.set('token', accessToken);
+
+  const resultImageUrl = new URL('/api/image', baseUrl);
+  resultImageUrl.searchParams.set('jobId', job.id);
+  resultImageUrl.searchParams.set('token', accessToken);
+
+  return {
+    generatorUrl: new URL('/', baseUrl).toString(),
+    downloadUrl: downloadUrl.toString(),
+    resultImageUrl: resultImageUrl.toString(),
+  };
 }
 
-function getEmailHtml(resultUrl: string) {
-  const safeResultUrl = escapeHtml(resultUrl);
-  return `
-    <div style="margin:0;background:#080910;padding:40px 20px;font-family:Arial,Helvetica,sans-serif;color:#f4f1ff;">
-      <div style="max-width:560px;margin:0 auto;background:#141522;border:1px solid #2a2b3c;border-radius:18px;padding:36px;">
-        <p style="margin:0 0 28px;color:#f5c7ff;font-size:13px;font-weight:700;letter-spacing:4px;">SGODX</p>
-        <h1 style="margin:0 0 14px;font-size:30px;line-height:1.15;color:#ffffff;">Tu imagen ya está lista</h1>
-        <p style="margin:0 0 28px;color:#c7c5d3;font-size:16px;line-height:1.6;">La generación terminó correctamente. Ya puedes ver y descargar tu resultado.</p>
-        <a href="${safeResultUrl}" style="display:inline-block;border-radius:999px;background:#e94fae;color:#ffffff;padding:14px 24px;font-size:13px;font-weight:700;letter-spacing:1px;text-decoration:none;">VER Y DESCARGAR IMAGEN</a>
-      </div>
-    </div>
-  `;
+function formatCreatedAt(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat('es-CL', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'America/Santiago',
+  }).format(date);
 }
 
 export async function sendJobResultEmail(jobId: string) {
@@ -72,13 +76,24 @@ export async function sendJobResultEmail(jobId: string) {
       throw new Error('Resend no está configurado');
     }
 
-    const resultUrl = getResultUrl(job);
+    const { generatorUrl, downloadUrl, resultImageUrl } = getEmailUrls(job);
+    const sgxPass = job.sgxPassId ? await getSgxPassById(job.sgxPassId) : null;
     const resend = new Resend(apiKey);
     const { error } = await resend.emails.send({
       from: fromEmail,
       to: [job.email],
-      subject: 'Tu imagen está lista 🎨',
-      html: getEmailHtml(resultUrl),
+      subject: 'Tu imagen SGODX ya está lista 🌴',
+      html: await render(createElement(GtaResultEmail, {
+        customerName: null,
+        customerEmail: job.email,
+        resultImageUrl,
+        downloadUrl,
+        orderId: job.id,
+        createdAt: formatCreatedAt(job.createdAt),
+        generatorUrl,
+        sgxPassCode: sgxPass?.publicCode,
+        sgxPassStatus: sgxPass?.status,
+      })),
     }, {
       idempotencyKey: `job-result/${job.id}`,
     });

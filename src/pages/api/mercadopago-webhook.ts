@@ -3,6 +3,7 @@ import {
   claimApprovedPaymentForProcessing,
   getJob,
   recordUnapprovedPayment,
+  updateJob,
 } from '../../lib/job-store';
 import {
   getExpectedJobPaymentConfig,
@@ -16,6 +17,7 @@ import {
   type MercadoPagoPayment,
 } from '../../lib/mercadopago';
 import { DevelopmentGenerationError, processPaidJob } from '../../lib/openai';
+import { ensureSgxPassForApprovedOrder } from '../../lib/sgx-pass';
 import { SupabaseBackendError } from '../../lib/supabase';
 
 export const prerender = false;
@@ -137,7 +139,7 @@ export const POST: APIRoute = async ({ request }) => {
       && payment.transactionAmount === expected.price
       && Boolean(job.mercadopagoPreferenceId)
       && orderPreference.valid
-      && (!orderPreference.preferenceId || orderPreference.preferenceId === job.mercadopagoPreferenceId);
+      && orderPreference.preferenceId === job.mercadopagoPreferenceId;
 
     if (!paymentMatchesJob) {
       await recordUnapprovedPayment({
@@ -160,6 +162,23 @@ export const POST: APIRoute = async ({ request }) => {
         errorMessage: mappedPaymentStatus === 'pending' ? null : 'El pago no fue aprobado.',
       });
       return jsonResponse({ ok: true, paymentStatus: mappedPaymentStatus }, 200);
+    }
+
+    const identity = await ensureSgxPassForApprovedOrder({
+      email: job.email,
+      jobId,
+      paymentId,
+      amount: expected.price,
+      currency: expected.currency,
+      approvedAt: new Date().toISOString(),
+    });
+    const associatedJob = await updateJob(jobId, {
+      customerId: identity.customer.id,
+      sgxPassId: identity.pass.id,
+    });
+
+    if (!associatedJob) {
+      throw new Error('No se pudo asociar el job a la identidad SGX.');
     }
 
     const claim = await claimApprovedPaymentForProcessing({ jobId, paymentId });

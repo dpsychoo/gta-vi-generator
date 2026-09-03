@@ -41,6 +41,8 @@ export interface JobRecord {
   inputImage2Path?: string | null;
   outputImagePath?: string | null;
   outputImageUrl?: string | null;
+  customerId?: string | null;
+  sgxPassId?: string | null;
   createdAt: string;
   updatedAt: string;
   errorMessage?: string | null;
@@ -108,6 +110,8 @@ function mapJobRow(row: Record<string, any>): JobRecord {
     inputImage2Path: row.input_image_2_path,
     outputImagePath: row.output_image_path,
     outputImageUrl: row.output_image_url,
+    customerId: row.customer_id,
+    sgxPassId: row.sgx_pass_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     errorMessage: row.error_message,
@@ -261,6 +265,8 @@ export async function updateJob(jobId: string, updates: Partial<JobRecord>) {
     if (updates.inputImage2Path !== undefined) payload.input_image_2_path = updates.inputImage2Path;
     if (updates.outputImagePath !== undefined) payload.output_image_path = updates.outputImagePath;
     if (updates.outputImageUrl !== undefined) payload.output_image_url = updates.outputImageUrl;
+    if (updates.customerId !== undefined) payload.customer_id = updates.customerId;
+    if (updates.sgxPassId !== undefined) payload.sgx_pass_id = updates.sgxPassId;
     if (updates.errorMessage !== undefined) payload.error_message = updates.errorMessage;
     if (updates.emailStatus !== undefined) payload.email_status = updates.emailStatus;
     if (updates.metadata !== undefined) payload.metadata = updates.metadata;
