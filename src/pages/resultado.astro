@@ -101,8 +101,8 @@ const isDev = import.meta.env.DEV;
         </div>
         <div class="sgx-pass-grid">
           <div>
-            <span class="sgx-pass-label">ROAD TO VI</span>
-            <strong class="sgx-pass-value" id="sgxPassEligibility"></strong>
+            <span class="sgx-pass-label">MEMBERSHIP</span>
+            <strong class="sgx-pass-value" id="sgxPassMembership">PERMANENT</strong>
           </div>
           <div>
             <span class="sgx-pass-label">PASS STATUS</span>
@@ -146,7 +146,7 @@ const isDev = import.meta.env.DEV;
     const downloadBtn = document.getElementById('downloadBtn');
     const sgxPassPanel = document.getElementById('sgxPassPanel');
     const sgxPassCode = document.getElementById('sgxPassCode');
-    const sgxPassEligibility = document.getElementById('sgxPassEligibility');
+    const sgxPassMembership = document.getElementById('sgxPassMembership');
     const sgxPassStatus = document.getElementById('sgxPassStatus');
     const copySgxPassBtn = document.getElementById('copySgxPassBtn');
     const copySgxPassFeedback = document.getElementById('copySgxPassFeedback');
@@ -351,7 +351,7 @@ const isDev = import.meta.env.DEV;
       }
       sgxPassPanel.hidden = true;
       sgxPassCode.textContent = '';
-      sgxPassEligibility.textContent = '';
+      sgxPassMembership.textContent = '';
       sgxPassStatus.textContent = '';
       copySgxPassBtn.hidden = true;
       copySgxPassFeedback.textContent = '';
@@ -366,8 +366,8 @@ const isDev = import.meta.env.DEV;
       }
 
       sgxPassCode.textContent = code;
-      sgxPassEligibility.textContent = status === 'active' ? 'ELIGIBLE' : 'REVIEW';
-      sgxPassStatus.textContent = status === 'active' ? '● ACTIVE' : `● ${status.toUpperCase()}`;
+      sgxPassMembership.textContent = 'PERMANENT';
+      sgxPassStatus.textContent = `● ${status.toUpperCase()}`;
       copySgxPassBtn.hidden = false;
       copySgxPassFeedback.textContent = '';
       sgxPassPanel.hidden = false;
