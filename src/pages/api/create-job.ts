@@ -10,12 +10,19 @@ import {
   createMercadoPagoPreference,
   MercadoPagoIntegrationError,
 } from '../../lib/mercadopago';
+import { validateImageFile } from '../../lib/image-validation.js';
 import { getAppBaseUrl } from '../../lib/server/env';
 import { SupabaseBackendError } from '../../lib/supabase';
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-const ALLOWED_FORMATS = ['jpeg', 'png', 'webp'];
 const GENERIC_PAYMENT_ERROR = 'No se pudo iniciar el pago. Inténtalo nuevamente.';
+
+sharp.block({
+  operation: [
+    'VipsForeignLoadNsgif',
+    'VipsForeignLoadTiff',
+    'VipsForeignLoadVips',
+  ],
+});
 
 function isAllowedRequestOrigin(request: Request) {
   if (!import.meta.env.PROD) {
@@ -35,36 +42,6 @@ function isAllowedRequestOrigin(request: Request) {
       && requestUrl.origin === configuredUrl.origin;
   } catch {
     return false;
-  }
-}
-
-async function validateImageFile(file: File): Promise<{ valid: boolean; error?: string }> {
-  // Validar tamaño
-  if (file.size > MAX_FILE_SIZE) {
-    return { valid: false, error: `El archivo ${file.name} excede 10 MB` };
-  }
-
-  // Validar MIME type como primera línea de defensa
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-    return { valid: false, error: `El archivo ${file.name} no es una imagen válida (MIME type: ${file.type})` };
-  }
-
-  // Validar que sea realmente una imagen usando sharp
-  try {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const metadata = await sharp(buffer).metadata();
-
-    if (!metadata.format) {
-      return { valid: false, error: `No se pudo determinar el formato de ${file.name}` };
-    }
-
-    if (!ALLOWED_FORMATS.includes(metadata.format)) {
-      return { valid: false, error: `El archivo ${file.name} es ${metadata.format.toUpperCase()}, solo se permiten JPG, PNG o WebP` };
-    }
-
-    return { valid: true };
-  } catch {
-    return { valid: false, error: `El archivo ${file.name} no es una imagen válida` };
   }
 }
 
@@ -108,7 +85,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     // Validar que todas las imágenes sean válidas
     for (const file of files) {
-      const validation = await validateImageFile(file);
+      const validation = await validateImageFile(file, (buffer) => sharp(buffer).metadata());
       if (!validation.valid) {
         return new Response(JSON.stringify({ ok: false, error: validation.error || 'Archivo inválido' }), {
           status: 400,
