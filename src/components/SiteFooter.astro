@@ -34,18 +34,19 @@ import {
     background:
       radial-gradient(circle at 18% 0%, rgba(255, 132, 178, 0.11), transparent 33%),
       linear-gradient(180deg, #10121b 0%, #080910 100%);
-    color: rgba(246, 244, 255, 0.82);
-    font-family: 'Poppins', sans-serif;
+    color: var(--color-body);
+    font-family: var(--font-body);
   }
 
   .site-footer__inner {
     width: min(1120px, calc(100% - 40px));
     margin: 0 auto;
     display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(240px, 1.6fr);
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.6fr);
     gap: 28px;
     align-items: start;
     padding: 28px 0 30px;
+    min-width: 0;
   }
 
   .site-footer__identity,
@@ -54,18 +55,23 @@ import {
     flex-wrap: wrap;
     gap: 8px 16px;
     align-items: center;
+    min-width: 0;
   }
 
   .site-footer__identity strong {
-    color: #ffffff;
+    color: var(--color-title);
+    font-family: var(--font-display);
     letter-spacing: 0.05em;
+    overflow-wrap: anywhere;
   }
 
   .site-footer__identity span,
   .site-footer__identity a,
   .site-footer__links a {
-    color: rgba(246, 244, 255, 0.68);
+    color: var(--color-muted);
     font-size: 0.78rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
   }
 
   .site-footer a {
@@ -73,7 +79,7 @@ import {
   }
 
   .site-footer a:hover {
-    color: #ffd69b;
+    color: var(--color-orange);
   }
 
   .site-footer a:focus-visible {
@@ -87,20 +93,21 @@ import {
   }
 
   .site-footer__links a {
-    color: #ffd1e7;
+    color: var(--color-link);
     font-weight: 700;
   }
 
   .site-footer__disclaimer {
     margin: 0;
-    color: rgba(246, 244, 255, 0.56);
+    color: var(--color-muted);
     font-size: 0.72rem;
     line-height: 1.55;
+    overflow-wrap: anywhere;
   }
 
   @media (max-width: 760px) {
     .site-footer__inner {
-      width: min(100% - 32px, 560px);
+      width: min(calc(100% - 24px), 560px);
       grid-template-columns: 1fr;
       gap: 18px;
       padding: 24px 0 28px;

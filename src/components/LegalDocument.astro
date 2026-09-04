@@ -77,40 +77,47 @@ const { title, description, version, sections } = Astro.props;
   }
 
   .legal-document-shell {
+    width: 100%;
     min-height: 100vh;
-    padding: 34px 20px 64px;
+    padding: clamp(24px, 4vw, 42px) clamp(12px, 4vw, 32px) clamp(48px, 7vw, 72px);
     background:
       radial-gradient(circle at 12% 0%, rgba(255, 108, 182, 0.12), transparent 32%),
       radial-gradient(circle at 86% 14%, rgba(123, 108, 255, 0.13), transparent 34%),
       #070910;
-    color: #edf2ff;
-    font-family: 'Poppins', sans-serif;
+    color: var(--color-body);
+    font-family: var(--font-body);
+    overflow: clip;
   }
 
   .legal-document-topbar,
   .legal-document-card {
     width: min(900px, 100%);
     margin-inline: auto;
+    min-width: 0;
   }
 
   .legal-document-topbar {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     gap: 18px;
     margin-bottom: 20px;
+    min-width: 0;
   }
 
   .legal-back-link,
   .legal-center-link {
-    color: #ffd1e7;
+    color: var(--color-link);
     font-size: 0.82rem;
     font-weight: 700;
+    line-height: 1.5;
     text-decoration: none;
+    overflow-wrap: anywhere;
   }
 
   .legal-back-link:hover,
   .legal-center-link:hover {
-    color: #ffe29b;
+    color: var(--color-orange);
   }
 
   .legal-back-link:focus-visible,
@@ -124,9 +131,10 @@ const { title, description, version, sections } = Astro.props;
 
   .legal-document-card {
     overflow: hidden;
+    min-width: 0;
     border: 1px solid rgba(255, 255, 255, 0.13);
     border-radius: 24px;
-    background: linear-gradient(180deg, rgba(17, 19, 31, 0.97), rgba(8, 10, 18, 0.98));
+    background: linear-gradient(180deg, rgba(17, 19, 31, 0.98), rgba(10, 12, 28, 0.98));
     box-shadow: 0 28px 90px rgba(0, 0, 0, 0.36), 0 0 45px rgba(220, 75, 178, 0.08);
   }
 
@@ -137,27 +145,31 @@ const { title, description, version, sections } = Astro.props;
 
   .legal-document-kicker {
     margin: 0 0 14px;
-    color: #ff9ecb;
+    color: var(--color-pink);
     font-size: 0.72rem;
     font-weight: 800;
     letter-spacing: 0.2em;
+    line-height: 1.4;
   }
 
   .legal-document-header h1 {
     max-width: 760px;
     margin: 0;
-    color: #ffffff;
+    color: var(--color-title);
     font-size: clamp(1.8rem, 5vw, 3.2rem);
+    font-weight: 700;
     line-height: 1.08;
     letter-spacing: -0.04em;
+    overflow-wrap: anywhere;
   }
 
   .legal-document-description {
     max-width: 720px;
     margin: 18px 0 0;
-    color: rgba(237, 242, 255, 0.72);
+    color: var(--color-body);
     font-size: clamp(0.92rem, 2vw, 1.08rem);
     line-height: 1.65;
+    overflow-wrap: anywhere;
   }
 
   .legal-document-meta {
@@ -165,11 +177,13 @@ const { title, description, version, sections } = Astro.props;
     flex-wrap: wrap;
     gap: 8px 20px;
     margin-top: 24px;
-    color: #ffd99b;
-    font-family: Arial, Helvetica, sans-serif;
+    color: var(--color-orange);
+    font-family: var(--font-body);
     font-size: 0.76rem;
     font-weight: 800;
     letter-spacing: 0.04em;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
   }
 
   .legal-document-toc {
@@ -177,11 +191,12 @@ const { title, description, version, sections } = Astro.props;
     padding: 18px 20px;
     border: 1px solid rgba(255, 166, 213, 0.18);
     border-radius: 16px;
-    background: rgba(34, 21, 48, 0.46);
+    background: rgba(10, 12, 28, 0.88);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.16);
   }
 
   .legal-document-toc strong {
-    color: #ffe1ac;
+    color: var(--color-orange);
     font-size: 0.82rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -198,10 +213,11 @@ const { title, description, version, sections } = Astro.props;
   .legal-document-toc a,
   .legal-document-content a,
   .legal-document-contact a {
-    color: #ffc4e1;
+    color: var(--color-link);
     text-decoration: underline;
     text-decoration-color: rgba(255, 196, 225, 0.45);
     text-underline-offset: 3px;
+    overflow-wrap: anywhere;
   }
 
   .legal-document-toc a {
@@ -211,31 +227,39 @@ const { title, description, version, sections } = Astro.props;
 
   .legal-document-content {
     padding: 12px clamp(22px, 7vw, 72px) 46px;
+    min-width: 0;
   }
 
   :global(.legal-document-content section) {
+    max-width: 100%;
+    min-width: 0;
     scroll-margin-top: 20px;
     padding-top: 30px;
   }
 
   :global(.legal-document-content h2) {
     margin: 0 0 12px;
-    color: #ffffff;
+    color: var(--color-title);
     font-size: clamp(1.15rem, 2.8vw, 1.55rem);
+    font-weight: 700;
     line-height: 1.25;
+    overflow-wrap: anywhere;
   }
 
   :global(.legal-document-content h3) {
     margin: 20px 0 8px;
-    color: #ffe0a2;
+    color: var(--color-orange);
     font-size: 1rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
   }
 
   :global(.legal-document-content p),
   :global(.legal-document-content li) {
-    color: rgba(237, 242, 255, 0.78);
+    color: var(--color-body);
     font-size: clamp(0.91rem, 1.8vw, 1rem);
     line-height: 1.78;
+    overflow-wrap: anywhere;
   }
 
   :global(.legal-document-content p) {
@@ -253,43 +277,46 @@ const { title, description, version, sections } = Astro.props;
   }
 
   :global(.legal-document-content strong) {
-    color: #ffffff;
+    color: var(--color-title);
   }
 
   :global(.legal-document-content .legal-callout) {
     margin: 16px 0;
     padding: 16px 18px;
-    border-left: 3px solid #ff9ecb;
+    border: 1px solid rgba(255, 184, 108, 0.2);
+    border-left: 3px solid var(--color-orange);
     border-radius: 8px;
-    background: rgba(255, 135, 193, 0.08);
+    background: rgba(255, 184, 108, 0.08);
   }
 
   .legal-document-contact {
     margin: 0 clamp(22px, 7vw, 72px) 46px;
     padding-top: 26px;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
-    color: rgba(237, 242, 255, 0.73);
+    color: var(--color-body);
     font-size: 0.9rem;
     line-height: 1.7;
   }
 
   .legal-document-contact strong {
-    color: #ffffff;
+    color: var(--color-title);
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
 
   .legal-document-contact p {
     margin: 8px 0 0;
+    overflow-wrap: anywhere;
   }
 
   @media (max-width: 640px) {
     .legal-document-shell {
-      padding: 24px 12px 40px;
+      padding: 24px 12px 44px;
     }
 
     .legal-document-topbar {
       flex-direction: column;
+      align-items: flex-start;
       gap: 8px;
     }
 
@@ -299,6 +326,29 @@ const { title, description, version, sections } = Astro.props;
 
     .legal-document-toc ol {
       grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 420px) {
+    .legal-document-shell {
+      padding-inline: 10px;
+    }
+
+    .legal-document-header {
+      padding-inline: 18px;
+    }
+
+    .legal-document-toc {
+      margin-inline: 18px;
+      padding-inline: 16px;
+    }
+
+    .legal-document-content {
+      padding-inline: 18px;
+    }
+
+    .legal-document-contact {
+      margin-inline: 18px;
     }
   }
 </style>
