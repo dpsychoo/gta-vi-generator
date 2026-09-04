@@ -1,6 +1,7 @@
 ---
 import { Image } from 'astro:assets';
 import viLogo from '../assets/vi.webp';
+import price2990Clp from '../assets/price-2990-clp.png';
 import {
   CONTRACTUAL_COPY,
   LEGAL_PATHS,
@@ -89,7 +90,10 @@ import {
       </div>
 
       <button type="submit" class="generate-button">
-        <span class="generate-button__main">$2.990 CLP</span>
+        <span class="generate-button__main">
+          <span class="generator-cta-label">Generar</span>
+          <Image src={price2990Clp} alt="" aria-hidden="true" class="generate-button__price-image" />
+        </span>
         <span class="generate-button__sub">Pagar con Mercado Pago</span>
       </button>
 

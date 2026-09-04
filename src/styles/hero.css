@@ -1,3 +1,11 @@
+@font-face {
+  font-family: "GTA_PRICE_FONT";
+  src: url("../assets/fonts/GTA_PRICE_FONT.TTF") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 .hero-wrapper {
   height: 100vh;
   position: relative;
@@ -761,6 +769,43 @@
   box-shadow: 0 24px 40px rgba(173, 104, 255, 0.28), 0 12px 24px rgba(255, 138, 94, 0.22);
 }
 
+.generate-button__main {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.35rem, 1.5vw, 0.55rem);
+  max-width: 100%;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.generator-cta-label {
+  color: #fff;
+  font-family: "GTA_PRICE_FONT", sans-serif;
+  font-size: clamp(1.45rem, 3.8vw, 2rem);
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  -webkit-text-stroke: 2px #000;
+  paint-order: stroke fill;
+  text-shadow:
+    -1.5px -1.5px 0 #000,
+    1.5px -1.5px 0 #000,
+    -1.5px 1.5px 0 #000,
+    1.5px 1.5px 0 #000;
+}
+
+.generate-button__price-image {
+  display: block;
+  width: clamp(110px, 30vw, 160px);
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+  flex: 0 1 auto;
+}
+
 .generate-button:hover {
   transform: translateY(-2px) scale(1.01);
   filter: brightness(1.08);
@@ -768,10 +813,10 @@
 
 .generate-button__sub {
   display: block;
-  font-size: 10px;
-  font-weight: 500;
-  line-height: 1;
-  opacity: 0.7;
+  font-size: clamp(0.78rem, 2.4vw, 0.9rem);
+  font-weight: 600;
+  line-height: 1.15;
+  opacity: 0.8;
   text-transform: none;
   letter-spacing: 0;
 }
