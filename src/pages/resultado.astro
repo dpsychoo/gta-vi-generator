@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import resultFondo from '../assets/resultFondo.avif';
+import '../styles/hero.css';
 
 const { searchParams } = Astro.url;
 const jobId = searchParams.get('jobId');
@@ -109,9 +110,12 @@ const isDev = import.meta.env.DEV;
             <strong class="sgx-pass-value" id="sgxPassStatus"></strong>
           </div>
         </div>
-        <div class="sgx-purchase-panel" id="sgxPurchasePanel" hidden>
+        <div class="sgx-purchase-panel sgxvi-purchase" id="sgxPurchasePanel" hidden>
           <span class="sgx-pass-label">PURCHASE NUMBER</span>
-          <strong class="sgx-purchase-number" id="sgxPurchaseNumber"></strong>
+          <div class="sgxvi-purchase__value">
+            <span class="sgxvi-purchase__label" id="sgxPurchaseLabel"></span>
+            <strong class="sgxvi-purchase__number" id="sgxPurchaseNumber"></strong>
+          </div>
           <p class="sgx-purchase-note">Tu número de compra dentro de SGX · VI.</p>
         </div>
         <p class="sgx-pass-note"><strong>Guarda tu SGX · VI PASS.</strong> Será tu código dentro del ecosistema SGODX.</p>
@@ -154,6 +158,7 @@ const isDev = import.meta.env.DEV;
     const sgxPassMembership = document.getElementById('sgxPassMembership');
     const sgxPassStatus = document.getElementById('sgxPassStatus');
     const sgxPurchasePanel = document.getElementById('sgxPurchasePanel');
+    const sgxPurchaseLabel = document.getElementById('sgxPurchaseLabel');
     const sgxPurchaseNumber = document.getElementById('sgxPurchaseNumber');
     const copySgxPassBtn = document.getElementById('copySgxPassBtn');
     const copySgxPassFeedback = document.getElementById('copySgxPassFeedback');
@@ -361,6 +366,7 @@ const isDev = import.meta.env.DEV;
       sgxPassMembership.textContent = '';
       sgxPassStatus.textContent = '';
       sgxPurchasePanel.hidden = true;
+      sgxPurchaseLabel.textContent = '';
       sgxPurchaseNumber.textContent = '';
       copySgxPassBtn.hidden = true;
       copySgxPassFeedback.textContent = '';
@@ -374,10 +380,20 @@ const isDev = import.meta.env.DEV;
         : '';
     }
 
+    function splitSgxviPurchaseNumber(purchaseLabel) {
+      if (!purchaseLabel) return null;
+      const separatorIndex = purchaseLabel.lastIndexOf(' #');
+      if (separatorIndex <= 0) return null;
+
+      const label = purchaseLabel.slice(0, separatorIndex);
+      const number = purchaseLabel.slice(separatorIndex + 1);
+      return label && /^#[0-9]+$/.test(number) ? { label, number } : null;
+    }
+
     function showSgxPass(pass, purchaseNumber) {
       const code = typeof pass?.code === 'string' ? pass.code : '';
       const status = ['active', 'suspended', 'revoked'].includes(pass?.status) ? pass.status : '';
-      const purchaseLabel = formatSgxviPurchaseNumber(purchaseNumber);
+      const purchaseLabel = splitSgxviPurchaseNumber(formatSgxviPurchaseNumber(purchaseNumber));
       if (!code && !purchaseLabel) {
         hideSgxPass();
         return;
@@ -389,7 +405,8 @@ const isDev = import.meta.env.DEV;
       sgxPassStatus.textContent = hasPass ? `● ${status.toUpperCase()}` : '';
       copySgxPassBtn.hidden = !hasPass;
       copySgxPassFeedback.textContent = '';
-      sgxPurchaseNumber.textContent = purchaseLabel;
+      sgxPurchaseLabel.textContent = purchaseLabel?.label || '';
+      sgxPurchaseNumber.textContent = purchaseLabel?.number || '';
       sgxPurchasePanel.hidden = !purchaseLabel;
       sgxPassPanel.hidden = false;
     }
@@ -706,12 +723,35 @@ const isDev = import.meta.env.DEV;
     border-top: 1px solid rgba(255, 116, 188, 0.2);
   }
 
-  .sgx-purchase-number {
-    display: block;
+  .sgxvi-purchase__value {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.45rem;
+    min-width: 0;
+    max-width: 100%;
     margin-top: 5px;
+  }
+
+  .sgxvi-purchase__label,
+  .sgxvi-purchase__number {
     color: #ffe0a1;
     font-size: clamp(1rem, 3vw, 1.25rem);
     letter-spacing: 0.08em;
+    line-height: 1;
+    overflow-wrap: anywhere;
+  }
+
+  .sgxvi-purchase__label {
+    font-family: inherit;
+    font-weight: 400;
+  }
+
+  .sgxvi-purchase__number {
+    display: inline-block;
+    max-width: 100%;
+    font-family: "GTA_PRICE_FONT", sans-serif;
+    font-weight: 400;
   }
 
   .sgx-purchase-note {
