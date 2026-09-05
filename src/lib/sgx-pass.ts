@@ -235,6 +235,52 @@ export async function getSgxPassById(passId: string) {
   return data ? mapPass(data) : null;
 }
 
+export async function getCustomerById(customerId: string) {
+  if (!UUID_PATTERN.test(customerId)) {
+    throw new Error('customer_id inválido.');
+  }
+
+  const supabase = getSgxPassSupabase();
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('id', customerId)
+    .maybeSingle();
+
+  if (error) {
+    throw createSupabaseOperationError(
+      'SGX_CUSTOMER_LOOKUP_FAILED',
+      'No se pudo consultar la identidad del cliente.',
+      error,
+    );
+  }
+
+  return data ? mapCustomer(data) : null;
+}
+
+export async function getSgxOrderByJobId(jobId: string) {
+  if (!UUID_PATTERN.test(jobId)) {
+    throw new Error('jobId inválido.');
+  }
+
+  const supabase = getSgxPassSupabase();
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('job_id', jobId)
+    .maybeSingle();
+
+  if (error) {
+    throw createSupabaseOperationError(
+      'SGX_ORDER_LOOKUP_FAILED',
+      'No se pudo consultar el pedido SGX.',
+      error,
+    );
+  }
+
+  return data ? mapOrder(data) : null;
+}
+
 export async function getOrCreateSgxPass(customerId: string) {
   const existing = await getSgxPassForCustomer(customerId);
   if (existing) {

@@ -545,7 +545,20 @@ await check('static SQL audit: postflight read-only; counter-first; atomic award
   assert(backfill.includes('approved_orders_without_approved_at'));
   assert(!/\bsetval\s*\(/i.test(backfill));
   assert(backfill.indexOf("assignment_state = 'live'") < backfill.indexOf('\ncommit;'));
-  assert(migration.includes('security definer\nset search_path = pg_catalog, pg_temp'));
+  // Validate both function headers independently; LF/CRLF and indentation
+  // must not change the security assertion. Ignore comments, not SQL tokens.
+  const securityHeader = /\bsecurity\s+definer\s+set\s+search_path\s*=\s*pg_catalog\s*,\s*pg_temp(?=\s*(?:set\b|as\b|$))/i;
+  const sqlWithoutComments = migration.replace(/--[^\n]*/g, '');
+  for (const name of ['guard_purchase_queue_v1', 'assign_purchase_number_v1']) {
+    const header = sqlWithoutComments.split(`create function public.${name}(`)[1]?.split(/\bas\s+\$/i)[0];
+    assert(header && securityHeader.test(header), `${name}: SECURITY DEFINER with restricted search_path required`);
+  }
+  for (const separator of ['\n', '\r\n  ', '\t']) {
+    assert(securityHeader.test(`SECURITY DEFINER${separator}SET search_path = pg_catalog, pg_temp`));
+  }
+  assert(!securityHeader.test('security invoker set search_path = pg_catalog, pg_temp'));
+  assert(!securityHeader.test('security definer set search_path = public, pg_temp'));
+  assert(!securityHeader.test('security definer set search_path = pg_catalog, pg_temp, public'));
   assert(migration.includes('revoke all on function public.assign_purchase_number_v1(uuid) from public, anon, authenticated'));
   assert(migration.includes('grant execute on function public.assign_purchase_number_v1(uuid) to service_role'));
   assert(migration.includes('cache 1 no cycle'));

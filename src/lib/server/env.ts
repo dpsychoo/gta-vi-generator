@@ -82,3 +82,7 @@ export function getJobAccessTokenEncryptionKey() {
 export function getCronSecret() {
   return getOptionalServerEnv('CRON_SECRET');
 }
+
+export function getGenerationRecoverySecret() {
+  return getOptionalServerEnv('GENERATION_RECOVERY_SECRET');
+}

@@ -11,6 +11,14 @@ import {
   supabaseUpload,
 } from './supabase';
 import { getOpenAIApiKey, getOpenAIStylePrompt } from './server/env';
+import {
+  logGenerationFailure,
+  logGenerationStage,
+  logOpenAIResponse,
+  logResultEmailOutcome,
+  safeProviderToken,
+  type GenerationStage,
+} from './generation-observability';
 
 const OPENAI_IMAGE_ENDPOINT = 'https://api.openai.com/v1/images/edits';
 const OPENAI_IMAGE_MODEL = 'gpt-image-2';
@@ -51,6 +59,7 @@ export class DevelopmentGenerationError extends Error {
   readonly statusCode: number;
   readonly openAIHttpStatus: number | null;
   readonly requestId: string | null;
+  readonly errorCode: string | null;
 
   constructor(
     message: string,
@@ -58,6 +67,7 @@ export class DevelopmentGenerationError extends Error {
       statusCode?: number;
       openAIHttpStatus?: number | null;
       requestId?: string | null;
+      errorCode?: string | null;
       cause?: unknown;
     } = {},
   ) {
@@ -66,6 +76,7 @@ export class DevelopmentGenerationError extends Error {
     this.statusCode = options.statusCode ?? 500;
     this.openAIHttpStatus = options.openAIHttpStatus ?? null;
     this.requestId = options.requestId ?? null;
+    this.errorCode = options.errorCode ?? null;
   }
 }
 
@@ -154,22 +165,6 @@ async function readOpenAIErrorBody(response: Response): Promise<OpenAIErrorRespo
   }
 }
 
-function logOpenAIResponse(status: number | 'unavailable', requestId: string | null, errorMessage?: string) {
-  if (!import.meta.env.DEV) {
-    return;
-  }
-
-  if (errorMessage) {
-    console.error(`OpenAI HTTP status: ${status}`);
-    console.error(`OpenAI request_id: ${requestId || 'unavailable'}`);
-    console.error(`OpenAI error: ${errorMessage}`);
-    return;
-  }
-
-  console.info(`OpenAI HTTP status: ${status}`);
-  console.info(`OpenAI request_id: ${requestId || 'unavailable'}`);
-}
-
 async function markJobFailed(jobId: string, message: string) {
   try {
     await updateJob(jobId, {
@@ -239,10 +234,22 @@ async function claimPendingJob(job: JobRecord) {
   }
 }
 
-async function generateResultImage(
+type GenerationContext = {
+  stage: GenerationStage;
+};
+
+function markGenerationStage(jobId: string, context: GenerationContext, stage: GenerationStage, phase: 'started' | 'completed') {
+  context.stage = stage;
+  logGenerationStage(jobId, stage, phase);
+}
+
+async function generateResultImageInternal(
   jobId: string,
   authorization: 'development' | 'mercadopago',
+  context: GenerationContext,
 ): Promise<DevelopmentGenerationResult> {
+  markGenerationStage(jobId, context, 'preflight', 'started');
+
   if (authorization === 'development' && import.meta.env.PROD) {
     throw new DevelopmentGenerationError('La generaciÃ³n manual solo estÃ¡ disponible en desarrollo.', {
       statusCode: 403,
@@ -293,6 +300,8 @@ async function generateResultImage(
     throw new DevelopmentGenerationError('El job no tiene input_image_1_path.', { statusCode: 400 });
   }
 
+  markGenerationStage(jobId, context, 'preflight', 'completed');
+
   const previousStatus = job.status;
   let didStartProcessing = false;
 
@@ -302,22 +311,34 @@ async function generateResultImage(
       didStartProcessing = true;
     }
 
+    markGenerationStage(jobId, context, 'style_reference', 'started');
     const master = await loadPrivateImage(
       getSupabasePrivateBucket(),
       getMasterStyleReferencePath(),
       'master-reference.webp',
     );
+    markGenerationStage(jobId, context, 'style_reference', 'completed');
+
+    markGenerationStage(jobId, context, 'input_1_download', 'started');
     const primary = await loadPrivateImage(
       getSupabaseUploadsBucket(),
       job.inputImage1Path,
       'customer-1.jpg',
     );
+    markGenerationStage(jobId, context, 'input_1_download', 'completed');
+
     const secondary = job.inputImage2Path
-      ? await loadPrivateImage(getSupabaseUploadsBucket(), job.inputImage2Path, 'customer-2.jpg')
+      ? await (async () => {
+        markGenerationStage(jobId, context, 'input_2_download', 'started');
+        const loaded = await loadPrivateImage(getSupabaseUploadsBucket(), job.inputImage2Path!, 'customer-2.jpg');
+        markGenerationStage(jobId, context, 'input_2_download', 'completed');
+        return loaded;
+      })()
       : null;
 
     logLoadedImageMetadata(master, primary, secondary);
 
+    markGenerationStage(jobId, context, 'form_preparation', 'started');
     const form = new FormData();
     form.append('model', OPENAI_IMAGE_MODEL);
     form.append('prompt', prompt);
@@ -330,7 +351,9 @@ async function generateResultImage(
     if (secondary) {
       form.append('image[]', new Blob([secondary.buffer], { type: secondary.mime }), secondary.fileName);
     }
+    markGenerationStage(jobId, context, 'form_preparation', 'completed');
 
+    markGenerationStage(jobId, context, 'openai_request', 'started');
     let response: Response;
     try {
       response = await fetch(OPENAI_IMAGE_ENDPOINT, {
@@ -343,7 +366,7 @@ async function generateResultImage(
       });
     } catch (error) {
       const message = 'No se pudo obtener una respuesta HTTP de OpenAI.';
-      logOpenAIResponse('unavailable', null, message);
+      logOpenAIResponse(jobId, 'unavailable', null, message);
       throw new DevelopmentGenerationError(message, {
         statusCode: 502,
         cause: error,
@@ -351,25 +374,29 @@ async function generateResultImage(
     }
 
     const requestId = response.headers.get('x-request-id');
+    markGenerationStage(jobId, context, 'openai_request', 'completed');
+
+    markGenerationStage(jobId, context, 'openai_response', 'started');
     if (!response.ok) {
       const errorBody = await readOpenAIErrorBody(response);
       const message = getSanitizedOpenAIErrorMessage(response.status, errorBody);
-      logOpenAIResponse(response.status, requestId, message);
+      logOpenAIResponse(jobId, response.status, requestId, message, errorBody);
       throw new DevelopmentGenerationError(message, {
         statusCode: 502,
         openAIHttpStatus: response.status,
         requestId,
+        errorCode: safeProviderToken(errorBody?.error?.code),
       });
     }
 
-    logOpenAIResponse(response.status, requestId);
+    logOpenAIResponse(jobId, response.status, requestId);
 
     let rawData: unknown;
     try {
       rawData = await response.json();
     } catch (error) {
       const message = 'OpenAI HTTP 200 devolviÃ³ una respuesta JSON invÃ¡lida.';
-      logOpenAIResponse(response.status, requestId, message);
+      logOpenAIResponse(jobId, response.status, requestId, message);
       throw new DevelopmentGenerationError(message, {
         statusCode: 502,
         openAIHttpStatus: response.status,
@@ -386,30 +413,36 @@ async function generateResultImage(
       || (rawData as OpenAIImageEditResponse).data[0].b64_json.length === 0
     ) {
       const message = 'OpenAI HTTP 200 no devolviÃ³ data[0].b64_json.';
-      logOpenAIResponse(response.status, requestId, message);
+      logOpenAIResponse(jobId, response.status, requestId, message);
       throw new DevelopmentGenerationError(message, {
         statusCode: 502,
         openAIHttpStatus: response.status,
         requestId,
       });
     }
+    markGenerationStage(jobId, context, 'openai_response', 'completed');
 
+    markGenerationStage(jobId, context, 'output_decode', 'started');
     const data = rawData as OpenAIImageEditResponse;
     const resultBase64 = data.data[0].b64_json;
     const outputBuffer = Buffer.from(resultBase64, 'base64');
     if (outputBuffer.length < PNG_SIGNATURE.length || !outputBuffer.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
       const message = 'OpenAI devolviÃ³ un contenido PNG invÃ¡lido.';
-      logOpenAIResponse(response.status, requestId, message);
+      logOpenAIResponse(jobId, response.status, requestId, message);
       throw new DevelopmentGenerationError(message, {
         statusCode: 502,
         openAIHttpStatus: response.status,
         requestId,
       });
     }
+    markGenerationStage(jobId, context, 'output_decode', 'completed');
 
     const outputPath = `${jobId}/result.png`;
+    markGenerationStage(jobId, context, 'storage_upload', 'started');
     await supabaseUpload(getSupabaseGeneratedBucket(), outputPath, outputBuffer, 'image/png');
+    markGenerationStage(jobId, context, 'storage_upload', 'completed');
 
+    markGenerationStage(jobId, context, 'db_completion', 'started');
     const completedJob = await updateJob(jobId, {
       status: 'completed',
       outputImagePath: outputPath,
@@ -431,9 +464,13 @@ async function generateResultImage(
     if (!completedJob) {
       throw new DevelopmentGenerationError('No se pudo confirmar el resultado generado.', { statusCode: 500 });
     }
+    markGenerationStage(jobId, context, 'db_completion', 'completed');
 
     // El email es secundario: un fallo de Resend nunca revierte el status completed.
-    await sendJobResultEmail(jobId);
+    markGenerationStage(jobId, context, 'result_email', 'started');
+    const emailResult = await sendJobResultEmail(jobId);
+    logResultEmailOutcome(jobId, emailResult);
+    markGenerationStage(jobId, context, 'result_email', 'completed');
 
     return {
       jobId,
@@ -450,6 +487,20 @@ async function generateResultImage(
       await markJobFailed(jobId, safeError.message);
     }
     throw safeError;
+  }
+}
+
+async function generateResultImage(
+  jobId: string,
+  authorization: 'development' | 'mercadopago',
+): Promise<DevelopmentGenerationResult> {
+  const context: GenerationContext = { stage: 'preflight' };
+
+  try {
+    return await generateResultImageInternal(jobId, authorization, context);
+  } catch (error) {
+    logGenerationFailure(jobId, context.stage, error);
+    throw error;
   }
 }
 

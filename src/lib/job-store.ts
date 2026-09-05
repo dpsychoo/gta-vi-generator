@@ -402,6 +402,22 @@ export interface PaidJobClaimResult {
   job: JobRecord | null;
 }
 
+export type GenerationRecoveryClaimReason =
+  | 'claimed'
+  | 'job_not_found'
+  | 'already_completed'
+  | 'already_processing'
+  | 'not_approved'
+  | 'not_failed'
+  | 'output_exists'
+  | 'not_claimable';
+
+export interface GenerationRecoveryClaimResult {
+  claimed: boolean;
+  reason: GenerationRecoveryClaimReason;
+  job: JobRecord | null;
+}
+
 function isUniqueViolation(error: unknown) {
   return Boolean(
     error
@@ -498,6 +514,76 @@ export async function claimApprovedPaymentForProcessing({
   }
   if (current.status === 'completed') {
     return { claimed: false, reason: 'already_completed', job: current };
+  }
+  return { claimed: false, reason: 'not_claimable', job: current };
+}
+
+// Administrative recovery only. The conditional UPDATE is the concurrency
+// boundary: exactly one retry can move a failed approved job to processing.
+// This deliberately does not touch payment_id, Order, PASS or numbering.
+export async function claimFailedApprovedJobForRecovery(job: JobRecord): Promise<GenerationRecoveryClaimResult> {
+  const jobId = job.id;
+  if (!isSupabaseConfigured()) {
+    throw new SupabaseBackendError(
+      'SUPABASE_REQUIRED_FOR_GENERATION_RECOVERY',
+      'La recuperación de generación requiere Supabase.',
+      500,
+    );
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('jobs')
+    .update({
+      status: 'processing',
+      error_message: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', jobId)
+    .eq('status', 'failed')
+    .eq('payment_status', 'approved')
+    .is('output_image_path', null)
+    // Bind the claim to the validated snapshot. A delayed competing request
+    // cannot claim again if another attempt already ran and failed (ABA).
+    .eq('updated_at', job.updatedAt)
+    .eq('payment_id', job.paymentId!)
+    .eq('customer_id', job.customerId!)
+    .eq('sgx_pass_id', job.sgxPassId!)
+    .eq('input_image_1_path', job.inputImage1Path!)
+    .is('media_purged_at', null)
+    .select('*')
+    .maybeSingle();
+
+  if (error) {
+    throw createSupabaseOperationError(
+      'GENERATION_RECOVERY_CLAIM_FAILED',
+      'No se pudo reservar el job para recuperación.',
+      error,
+    );
+  }
+
+  if (data) {
+    return { claimed: true, reason: 'claimed', job: mapJobRow(data) };
+  }
+
+  const current = await getJob(jobId);
+  if (!current) {
+    return { claimed: false, reason: 'job_not_found', job: null };
+  }
+  if (current.paymentStatus !== 'approved') {
+    return { claimed: false, reason: 'not_approved', job: current };
+  }
+  if (current.status === 'completed') {
+    return { claimed: false, reason: 'already_completed', job: current };
+  }
+  if (current.status === 'processing') {
+    return { claimed: false, reason: 'already_processing', job: current };
+  }
+  if (current.status !== 'failed') {
+    return { claimed: false, reason: 'not_failed', job: current };
+  }
+  if (current.outputImagePath) {
+    return { claimed: false, reason: 'output_exists', job: current };
   }
   return { claimed: false, reason: 'not_claimable', job: current };
 }
