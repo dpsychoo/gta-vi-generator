@@ -24,6 +24,7 @@ import {
 } from '../../lib/legal-acceptance';
 import { isLegalCenterV1Job } from '../../lib/legal';
 import { ensureSgxPassForApprovedOrder } from '../../lib/sgx-pass';
+import { tryAssignPurchaseNumber } from '../../lib/purchase-number';
 import { SupabaseBackendError } from '../../lib/supabase';
 
 export const prerender = false;
@@ -170,6 +171,9 @@ export const POST: APIRoute = async ({ request }) => {
       return jsonResponse({ ok: true, paymentStatus: mappedPaymentStatus }, 200);
     }
 
+    // approvedAt is backend observation time, captured before identity writes.
+    // Live purchase ordering comes from DB queue admission, not this timestamp
+    // or Mercado Pago's date_approved (which the current mapper does not use).
     const identity = await ensureSgxPassForApprovedOrder({
       email: job.email,
       jobId,
@@ -206,6 +210,12 @@ export const POST: APIRoute = async ({ request }) => {
         order: identity.order,
       });
     }
+
+    // Identity/Order are durable and the legal flow is complete. Run this
+    // before the generation claim so duplicate approved webhooks can repair
+    // a missing number even for an already completed job. Failure/prior_pending
+    // is nonfatal to fulfillment; later queue entries cannot overtake its head.
+    await tryAssignPurchaseNumber(identity.order.id);
 
     const claim = await claimApprovedPaymentForProcessing({ jobId, paymentId });
     if (!claim.claimed) {

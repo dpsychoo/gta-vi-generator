@@ -1,44 +1,71 @@
 -- PROPOSED ADMINISTRATIVE OPERATION ONLY: PURCHASE NUMBER BACKFILL v1.
 -- Do not run as a migration and do not run without an approved production
--- window. It requires Migration C to have completed successfully.
+-- window. It requires Migrations C/D and the compatible webhook rollout.
 -- It assigns numbers only; it does not create milestones or awards.
+-- Historical prefix: queue positions 1..N are assigned by approved_at ASC,
+-- id ASC. Queue positions already admitted after D are not reset or
+-- renumbered. After this fixed cut, live uses durable queue admission order.
 
-begin;
+begin isolation level read committed;
 
 set local lock_timeout = '5s';
-set local statement_timeout = '10min';
-
--- This is the same transition mutex that the future assignment RPC must use.
--- It prevents an assignment RPC from running while the counter is prepared.
-select pg_advisory_xact_lock(
-  hashtextextended('sgodx.purchase_number_assignment', 0)
-);
+set local statement_timeout = '30s';
+set local sgodx.purchase_assignment_context = 'backfill';
 
 do $$
 declare
-  counter_rows bigint;
   counter_state text;
   counter_id smallint;
+  counter_last bigint;
   missing_approved_at bigint;
   assigned_before_backfill bigint;
+  blocked_queue_rows bigint;
+  legacy_approved bigint;
+  existing_queue_count bigint;
+  existing_queue_min bigint;
 begin
-  select count(*)
-    into counter_rows
-  from public.purchase_counter
-  where id = 1;
-
-  if counter_rows <> 1 then
-    raise exception 'purchase_counter_singleton_missing_or_duplicated';
-  end if;
-
-  select id, assignment_state
-    into counter_id, counter_state
+  -- GLOBAL LOCK ORDER: counter FIRST, Orders AFTER. No advisory mutex.
+  select id, assignment_state, last_purchase_number
+    into counter_id, counter_state, counter_last
   from public.purchase_counter
   where id = 1
   for update;
 
+  if not found then
+    raise exception 'purchase_counter_singleton_missing';
+  end if;
+
   if counter_state <> 'paused' then
     raise exception 'purchase_counter_must_be_paused_before_backfill';
+  end if;
+
+  if counter_last <> 0 then
+    raise exception 'nonzero_purchase_counter_requires_manual_reconciliation';
+  end if;
+
+  -- Freeze writes only for this short administrative transaction. Existing
+  -- writers finish before this lock is granted; subsequent inserts/approvals
+  -- wait until COMMIT, persist afterwards and call the now-live RPC.
+  -- READ COMMITTED gives the ranking a fresh snapshot AFTER the lock grant.
+  -- Ordinary readers remain available. RPC callers must not hold Order locks
+  -- before acquiring the counter (the webhook uses separate transactions).
+  lock table public.orders in share row exclusive mode;
+
+  if not exists (
+    select 1 from pg_catalog.pg_trigger
+    where tgrelid = 'public.orders'::regclass
+      and tgname = 'orders_purchase_queue_guard_v1'
+      and tgfoid = 'public.guard_purchase_queue_v1()'::regprocedure
+      and tgenabled = 'O' and not tgisinternal
+  ) then
+    raise exception 'purchase_queue_admission_guard_required';
+  end if;
+
+  select count(*) into blocked_queue_rows from public.orders
+  where purchase_queue_position is not null and purchase_number is null
+    and status <> 'approved';
+  if blocked_queue_rows <> 0 then
+    raise exception 'queued_nonapproved_orders_require_lifecycle_review';
   end if;
 
   select count(*)
@@ -60,6 +87,25 @@ begin
     raise exception 'existing_purchase_numbers_require_manual_reconciliation=%', assigned_before_backfill;
   end if;
 
+  -- D reserves the first N sequence values for the approved population that
+  -- existed at cutover. Therefore any already-admitted post-D row must start
+  -- strictly after the historical prefix that this operation will fill.
+  select count(*) into legacy_approved
+  from public.orders
+  where status = 'approved'
+    and approved_at is not null
+    and purchase_number is null
+    and purchase_queue_position is null;
+
+  select count(*), min(purchase_queue_position)
+    into existing_queue_count, existing_queue_min
+  from public.orders
+  where purchase_queue_position is not null;
+
+  if existing_queue_count <> 0 and existing_queue_min <= legacy_approved then
+    raise exception 'queue_positions_precede_historical_cutover';
+  end if;
+
   update public.purchase_counter
   set assignment_state = 'backfill',
       updated_at = timezone('utc', now())
@@ -67,16 +113,69 @@ begin
 end
 $$;
 
--- Assign the complete current approved population deterministically. The
--- NULL predicate is defensive and prevents renumbering if this script is
--- reviewed against a partially populated database.
-with ranked_orders as (
+-- Fill the historical internal queue prefix before assigning commercial
+-- numbers. The trigger allows this one-way NULL -> value transition only in
+-- this transaction, with the admin context above. New post-D rows already
+-- have positions after this prefix because D reserved the sequence range.
+with ranked_legacy as (
   select
     id,
-    row_number() over (order by approved_at asc, id asc)::bigint as assigned_number
+    row_number() over (order by approved_at asc, id asc)::bigint as assigned_queue_position
   from public.orders
   where status = 'approved'
     and approved_at is not null
+    and purchase_number is null
+    and purchase_queue_position is null
+), assigned_queue as (
+  update public.orders as orders
+  set purchase_queue_position = ranked_legacy.assigned_queue_position
+  from ranked_legacy
+  where orders.id = ranked_legacy.id
+    and orders.purchase_queue_position is null
+  returning orders.id
+)
+select count(*)::bigint as assigned_queue_positions
+from assigned_queue;
+
+do $$
+declare
+  missing_queue_position bigint;
+  sequence_last_value bigint;
+  max_queue_position bigint;
+begin
+  select count(*) into missing_queue_position
+  from public.orders
+  where status = 'approved'
+    and purchase_number is null
+    and purchase_queue_position is null;
+
+  if missing_queue_position <> 0 then
+    raise exception 'approved_orders_without_queue_position=%', missing_queue_position;
+  end if;
+
+  -- D already reserved this sequence range before the historical prefix was
+  -- filled. Do not reset it: rollback/duplicate gaps are valid internally.
+  -- This assertion fails closed if a manually reviewed database is behind.
+  select last_value into sequence_last_value
+  from public.purchase_queue_position_v1_seq;
+  select max(purchase_queue_position) into max_queue_position
+  from public.orders;
+  if sequence_last_value < coalesce(max_queue_position, 0) then
+    raise exception 'queue_sequence_behind_historical_positions';
+  end if;
+end
+$$;
+
+-- Assign the complete current approved population deterministically by the
+-- durable queue position. The NULL predicate is defensive and prevents
+-- renumbering if this script is reviewed against a partially populated DB.
+with ranked_orders as (
+  select
+    id,
+    row_number() over (order by purchase_queue_position asc)::bigint as assigned_number
+  from public.orders
+  where status = 'approved'
+    and purchase_queue_position is not null
     and purchase_number is null
 ), assigned as (
   update public.orders as orders
@@ -93,6 +192,7 @@ do $$
 declare
   approved_total bigint;
   approved_numbered bigint;
+  approved_positioned bigint;
   assigned_total bigint;
   min_number bigint;
   max_number bigint;
@@ -108,6 +208,12 @@ begin
   from public.orders
   where status = 'approved'
     and purchase_number is not null;
+
+  select count(*)
+    into approved_positioned
+  from public.orders
+  where status = 'approved'
+    and purchase_queue_position is not null;
 
   select count(*), min(purchase_number), max(purchase_number)
     into assigned_total, min_number, max_number
@@ -126,6 +232,10 @@ begin
 
   if approved_total <> approved_numbered then
     raise exception 'approved_order_not_numbered=%', approved_total - approved_numbered;
+  end if;
+
+  if approved_total <> approved_positioned then
+    raise exception 'approved_order_without_queue_position=%', approved_total - approved_positioned;
   end if;
 
   if assigned_total <> approved_total then
