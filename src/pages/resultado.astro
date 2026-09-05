@@ -922,7 +922,7 @@ const isDev = import.meta.env.DEV;
     min-width: 0;
   }
 
-  .sgxvi-purchase-history__item {
+  :global(.sgxvi-purchase-history__item) {
     display: inline-flex;
     flex-wrap: wrap;
     align-items: center;
@@ -935,23 +935,23 @@ const isDev = import.meta.env.DEV;
     overflow-wrap: anywhere;
   }
 
-  .sgxvi-purchase-history__item.is-current {
+  :global(.sgxvi-purchase-history__item.is-current) {
     color: #ff4fd8;
     text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.78);
   }
 
-  .sgxvi-purchase-history__item.is-current .sgxvi-purchase-history__number,
-  .sgxvi-purchase-history__item.is-current .sgxvi-purchase-history__marker {
-    color: inherit;
+  :global(.sgxvi-purchase-history__item.is-current .sgxvi-purchase-history__number),
+  :global(.sgxvi-purchase-history__item.is-current .sgxvi-purchase-history__marker) {
+    color: #ff4fd8;
   }
 
-  .sgxvi-purchase-history__number {
+  :global(.sgxvi-purchase-history__number) {
     color: inherit;
     font-family: inherit;
     overflow-wrap: anywhere;
   }
 
-  .sgxvi-purchase-history__marker {
+  :global(.sgxvi-purchase-history__marker) {
     display: inline-block;
     flex: 0 0 auto;
     color: #ff8ce8;
