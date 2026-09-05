@@ -455,13 +455,16 @@ const isDev = import.meta.env.DEV;
         historyItem.setAttribute('role', 'listitem');
 
         const number = document.createElement('span');
+        number.className = 'sgxvi-purchase-history__number';
         number.textContent = displayNumber;
         historyItem.append(number);
 
         if (item?.is_current === true) {
-          const current = document.createElement('small');
-          current.textContent = 'CURRENT';
-          historyItem.append(current);
+          const palm = document.createElement('span');
+          palm.className = 'sgxvi-purchase-history__marker';
+          palm.setAttribute('aria-hidden', 'true');
+          palm.textContent = '🌴';
+          historyItem.append(palm);
         }
 
         fragment.append(historyItem);
@@ -922,26 +925,36 @@ const isDev = import.meta.env.DEV;
   .sgxvi-purchase-history__item {
     display: inline-flex;
     flex-wrap: wrap;
-    align-items: baseline;
-    gap: 6px;
+    align-items: center;
+    gap: 5px;
     max-width: 100%;
-    color: #e2e6ef;
+    color: rgba(226, 230, 239, 0.68);
     font-family: "GTA_PRICE_FONT", sans-serif;
     font-size: clamp(1.1rem, 3vw, 1.5rem);
-    line-height: 1;
+    line-height: 1.1;
     overflow-wrap: anywhere;
   }
 
   .sgxvi-purchase-history__item.is-current {
-    color: #55ff3f;
+    color: #ff4fd8;
+    text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.78);
   }
 
-  .sgxvi-purchase-history__item small {
-    color: currentColor;
+  .sgxvi-purchase-history__number {
+    color: inherit;
     font-family: inherit;
-    font-size: 0.45em;
-    font-weight: 700;
-    letter-spacing: 0.08em;
+    overflow-wrap: anywhere;
+  }
+
+  .sgxvi-purchase-history__marker {
+    display: inline-block;
+    flex: 0 0 auto;
+    color: #ff8ce8;
+    font-family: system-ui, sans-serif;
+    font-size: 0.72em;
+    line-height: 1;
+    transform: translateY(-0.06em);
+    text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.78);
   }
 
   .sgxvi-milestone-panel {
