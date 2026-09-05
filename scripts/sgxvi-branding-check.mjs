@@ -78,7 +78,12 @@ const statusBundle = await build({
       const replacements = new Map([
         ['job-access', "export const verifyJobAccess = () => true;"],
         ['job-store', "export const getJob = () => globalThis.__statusJob;"],
-        ['sgx-pass', "export const getSgxPassById = () => globalThis.__statusPass; export const getSgxOrderByJobId = () => globalThis.__statusOrder;"],
+        ['sgx-pass', [
+          "export const getSgxPassById = () => globalThis.__statusPass;",
+          "export const getSgxOrderByJobId = () => globalThis.__statusOrder;",
+          "export const getSgxPurchaseHistoryByPassId = () => [];",
+          "export const getSgxMilestoneReadModel = () => ({ next_milestone: null, current_milestone: null });",
+        ].join('\n')],
       ]);
       builder.onResolve({ filter: /job-access$|job-store$|sgx-pass$/ }, (args) => ({
         path: args.path.endsWith('job-access') ? 'job-access' : args.path.endsWith('job-store') ? 'job-store' : 'sgx-pass',

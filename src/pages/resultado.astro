@@ -117,6 +117,24 @@ const isDev = import.meta.env.DEV;
             <strong class="sgxvi-purchase__number" id="sgxPurchaseNumber"></strong>
           </div>
           <p class="sgx-purchase-note">Tu número de compra dentro de SGX · VI.</p>
+          <div class="sgxvi-milestone-unlocked" id="sgxMilestoneUnlocked" hidden>
+            <span class="sgxvi-milestone-unlocked__label">MILESTONE UNLOCKED</span>
+          </div>
+          <div class="sgxvi-purchase-history" id="sgxPurchaseHistory" hidden>
+            <span class="sgx-pass-label">PURCHASE HISTORY</span>
+            <div class="sgxvi-purchase-history__list" id="sgxPurchaseHistoryList" role="list"></div>
+          </div>
+          <div class="sgxvi-milestone-panel" id="sgxMilestonePanel" hidden>
+            <span class="sgx-pass-label">NEXT MILESTONE</span>
+            <strong class="sgxvi-milestone-panel__number" id="sgxMilestoneNumber"></strong>
+            <div class="sgxvi-milestone-panel__progress" id="sgxMilestoneProgress" role="progressbar" aria-label="Milestone progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <div class="sgxvi-milestone-panel__progress-bar" id="sgxMilestoneProgressBar"></div>
+            </div>
+            <div class="sgxvi-milestone-panel__meta">
+              <span id="sgxMilestoneProgressValue">0%</span>
+              <span><span id="sgxMilestoneRemaining">0</span> PURCHASES TO GO</span>
+            </div>
+          </div>
         </div>
         <p class="sgx-pass-note"><strong>Guarda tu SGX · VI PASS.</strong> Será tu código dentro del ecosistema SGODX.</p>
       </section>
@@ -160,6 +178,15 @@ const isDev = import.meta.env.DEV;
     const sgxPurchasePanel = document.getElementById('sgxPurchasePanel');
     const sgxPurchaseLabel = document.getElementById('sgxPurchaseLabel');
     const sgxPurchaseNumber = document.getElementById('sgxPurchaseNumber');
+    const sgxMilestoneUnlocked = document.getElementById('sgxMilestoneUnlocked');
+    const sgxPurchaseHistory = document.getElementById('sgxPurchaseHistory');
+    const sgxPurchaseHistoryList = document.getElementById('sgxPurchaseHistoryList');
+    const sgxMilestonePanel = document.getElementById('sgxMilestonePanel');
+    const sgxMilestoneNumber = document.getElementById('sgxMilestoneNumber');
+    const sgxMilestoneProgress = document.getElementById('sgxMilestoneProgress');
+    const sgxMilestoneProgressBar = document.getElementById('sgxMilestoneProgressBar');
+    const sgxMilestoneProgressValue = document.getElementById('sgxMilestoneProgressValue');
+    const sgxMilestoneRemaining = document.getElementById('sgxMilestoneRemaining');
     const copySgxPassBtn = document.getElementById('copySgxPassBtn');
     const copySgxPassFeedback = document.getElementById('copySgxPassFeedback');
 
@@ -368,6 +395,7 @@ const isDev = import.meta.env.DEV;
       sgxPurchasePanel.hidden = true;
       sgxPurchaseLabel.textContent = '';
       sgxPurchaseNumber.textContent = '';
+      resetPurchaseExperience();
       copySgxPassBtn.hidden = true;
       copySgxPassFeedback.textContent = '';
     }
@@ -390,7 +418,91 @@ const isDev = import.meta.env.DEV;
       return label && /^#[0-9]+$/.test(number) ? { label, number } : null;
     }
 
-    function showSgxPass(pass, purchaseNumber) {
+    function normalizePublicPurchaseNumber(value) {
+      const normalized = String(value ?? '').trim();
+      return /^[1-9][0-9]*$/.test(normalized) ? normalized : '';
+    }
+
+    function formatPublicPurchaseNumber(value) {
+      const normalized = normalizePublicPurchaseNumber(value);
+      return normalized ? `#${normalized.padStart(6, '0')}` : '';
+    }
+
+    function resetPurchaseExperience() {
+      sgxPurchaseNumber.classList.remove('is-milestone');
+      sgxMilestoneUnlocked.hidden = true;
+      sgxPurchaseHistory.hidden = true;
+      sgxPurchaseHistoryList.replaceChildren();
+      sgxMilestonePanel.hidden = true;
+      sgxMilestoneNumber.textContent = '';
+      sgxMilestoneProgressBar.style.width = '0%';
+      sgxMilestoneProgressValue.textContent = '0%';
+      sgxMilestoneRemaining.textContent = '0';
+      sgxMilestoneProgress.setAttribute('aria-valuenow', '0');
+    }
+
+    function renderPurchaseHistory(history) {
+      const items = Array.isArray(history) ? history : [];
+      const fragment = document.createDocumentFragment();
+      let renderedItems = 0;
+
+      for (const item of items) {
+        const displayNumber = formatPublicPurchaseNumber(item?.purchase_number);
+        if (!displayNumber) continue;
+
+        const historyItem = document.createElement('span');
+        historyItem.className = `sgxvi-purchase-history__item${item?.is_current === true ? ' is-current' : ''}`;
+        historyItem.setAttribute('role', 'listitem');
+
+        const number = document.createElement('span');
+        number.textContent = displayNumber;
+        historyItem.append(number);
+
+        if (item?.is_current === true) {
+          const current = document.createElement('small');
+          current.textContent = 'CURRENT';
+          historyItem.append(current);
+        }
+
+        fragment.append(historyItem);
+        renderedItems += 1;
+      }
+
+      sgxPurchaseHistoryList.replaceChildren(fragment);
+      sgxPurchaseHistory.hidden = renderedItems === 0;
+    }
+
+    function renderMilestoneExperience(purchaseNumber, nextMilestone, currentMilestone, progress) {
+      const currentNumber = normalizePublicPurchaseNumber(purchaseNumber);
+      const unlockedNumber = normalizePublicPurchaseNumber(currentMilestone?.purchase_number);
+      const isMilestoneUnlocked = Boolean(
+        currentNumber
+        && unlockedNumber
+        && currentNumber === unlockedNumber
+        && currentMilestone?.reached === true,
+      );
+
+      sgxPurchaseNumber.classList.toggle('is-milestone', isMilestoneUnlocked);
+      sgxMilestoneUnlocked.hidden = !isMilestoneUnlocked;
+
+      const nextNumber = normalizePublicPurchaseNumber(nextMilestone?.purchase_number);
+      const percentage = Number(progress?.percentage);
+      const remaining = normalizePublicPurchaseNumber(progress?.remaining || '');
+      if (!nextNumber || !Number.isFinite(percentage) || !remaining) {
+        sgxMilestonePanel.hidden = true;
+        return;
+      }
+
+      const boundedPercentage = Math.max(0, Math.min(100, Math.round(percentage)));
+      sgxMilestoneNumber.textContent = formatPublicPurchaseNumber(nextNumber);
+      sgxMilestoneProgressBar.style.width = `${boundedPercentage}%`;
+      sgxMilestoneProgressValue.textContent = `${boundedPercentage}%`;
+      sgxMilestoneRemaining.textContent = remaining;
+      sgxMilestoneProgress.setAttribute('aria-valuenow', String(boundedPercentage));
+      sgxMilestonePanel.hidden = false;
+    }
+
+    function showSgxPass(pass, purchaseNumber, purchaseHistory, nextMilestone, currentMilestone, milestoneProgress) {
       const code = typeof pass?.code === 'string' ? pass.code : '';
       const status = ['active', 'suspended', 'revoked'].includes(pass?.status) ? pass.status : '';
       const purchaseLabel = splitSgxviPurchaseNumber(formatSgxviPurchaseNumber(purchaseNumber));
@@ -408,6 +520,9 @@ const isDev = import.meta.env.DEV;
       sgxPurchaseLabel.textContent = purchaseLabel?.label || '';
       sgxPurchaseNumber.textContent = purchaseLabel?.number || '';
       sgxPurchasePanel.hidden = !purchaseLabel;
+      resetPurchaseExperience();
+      renderPurchaseHistory(purchaseHistory);
+      renderMilestoneExperience(purchaseNumber, nextMilestone, currentMilestone, milestoneProgress);
       sgxPassPanel.hidden = false;
     }
 
@@ -499,7 +614,14 @@ const isDev = import.meta.env.DEV;
         stopPolling();
         completeVisualProgress(() => {
           showCompletedContent();
-          showSgxPass(job.sgxPass, job.purchase_number);
+          showSgxPass(
+            job.sgxPass,
+            job.purchase_number,
+            job.purchase_history,
+            job.next_milestone,
+            job.current_milestone,
+            job.milestone_progress,
+          );
           showCompletedResult();
         });
         return;
@@ -769,6 +891,163 @@ const isDev = import.meta.env.DEV;
     margin: 8px 0 0;
     color: var(--muted);
     font-size: 0.86rem;
+  }
+
+  .sgxvi-milestone-unlocked {
+    margin-top: 18px;
+  }
+
+  .sgxvi-milestone-unlocked__label {
+    color: #ffe37c;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .sgxvi-purchase-history {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .sgxvi-purchase-history__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin-top: 8px;
+    min-width: 0;
+  }
+
+  .sgxvi-purchase-history__item {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    max-width: 100%;
+    color: #e2e6ef;
+    font-family: "GTA_PRICE_FONT", sans-serif;
+    font-size: clamp(1.1rem, 3vw, 1.5rem);
+    line-height: 1;
+    overflow-wrap: anywhere;
+  }
+
+  .sgxvi-purchase-history__item.is-current {
+    color: #55ff3f;
+  }
+
+  .sgxvi-purchase-history__item small {
+    color: currentColor;
+    font-family: inherit;
+    font-size: 0.45em;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+
+  .sgxvi-milestone-panel {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 227, 124, 0.2);
+  }
+
+  .sgxvi-milestone-panel__number {
+    display: block;
+    margin-top: 7px;
+    color: #ffe37c;
+    font-family: "GTA_PRICE_FONT", sans-serif;
+    font-size: clamp(1.2rem, 3.5vw, 1.75rem);
+    line-height: 1;
+    overflow-wrap: anywhere;
+  }
+
+  .sgxvi-milestone-panel__progress {
+    height: 8px;
+    margin-top: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 227, 124, 0.42);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .sgxvi-milestone-panel__progress-bar {
+    width: 0%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #55ff3f, #ffe37c);
+    transition: width 240ms ease;
+  }
+
+  .sgxvi-milestone-panel__meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 7px;
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .sgxvi-purchase__number.is-milestone {
+    position: relative;
+    color: #ffd84d;
+    background: linear-gradient(
+      180deg,
+      #fff7b0 0%,
+      #ffd84d 25%,
+      #f2a900 60%,
+      #fff0a0 100%
+    );
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .sgxvi-purchase__number.is-milestone::before,
+  .sgxvi-purchase__number.is-milestone::after {
+    position: absolute;
+    color: #fff7b0;
+    content: '✦';
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 0.42em;
+    line-height: 1;
+    pointer-events: none;
+    -webkit-text-fill-color: #fff7b0;
+    -webkit-text-stroke: 0;
+    text-shadow: none;
+    animation: sgxvi-purchase-sparkle 1.8s ease-in-out infinite;
+  }
+
+  .sgxvi-purchase__number.is-milestone::before {
+    top: -0.15em;
+    right: 0.1em;
+  }
+
+  .sgxvi-purchase__number.is-milestone::after {
+    bottom: -0.2em;
+    left: 0.1em;
+    animation-delay: 0.55s;
+  }
+
+  @keyframes sgxvi-purchase-sparkle {
+    0%, 100% {
+      opacity: 0.45;
+      transform: scale(0.72) rotate(0deg);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.08) rotate(18deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sgxvi-purchase__number.is-milestone::before,
+    .sgxvi-purchase__number.is-milestone::after,
+    .sgxvi-milestone-panel__progress-bar {
+      animation: none;
+      transition: none;
+    }
   }
 
   .sgx-pass-label {

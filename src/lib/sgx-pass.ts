@@ -5,6 +5,7 @@ import {
   isSupabaseConfigured,
   SupabaseBackendError,
 } from './supabase';
+import type { PublicMilestoneReadModel } from './purchase-milestone';
 
 export type SgxPassStatus = 'active' | 'suspended' | 'revoked';
 export type SgxOrderStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'refunded' | 'chargeback' | 'failed';
@@ -284,6 +285,135 @@ export async function getSgxOrderByJobId(jobId: string) {
   }
 
   return data ? mapOrder(data) : null;
+}
+
+function isPositiveDecimalString(value: unknown): value is string {
+  return typeof value === 'string' && /^[1-9][0-9]*$/.test(value);
+}
+
+function compareDecimalStrings(left: string, right: string) {
+  const leftValue = BigInt(left);
+  const rightValue = BigInt(right);
+  return leftValue === rightValue ? 0 : leftValue < rightValue ? -1 : 1;
+}
+
+export async function getSgxPurchaseHistoryByPassId(
+  sgxPassId: string,
+  currentPurchaseNumber: string | null,
+) {
+  if (!UUID_PATTERN.test(sgxPassId)) {
+    throw new Error('sgx_pass_id invÃ¡lido.');
+  }
+
+  const supabase = getSgxPassSupabase();
+  const { data, error } = await supabase
+    .from('orders')
+    .select('purchase_number,status')
+    .eq('sgx_pass_id', sgxPassId)
+    .eq('status', 'approved')
+    .not('purchase_number', 'is', null)
+    .order('purchase_number', { ascending: true });
+
+  if (error) {
+    throw createSupabaseOperationError(
+      'SGX_PURCHASE_HISTORY_LOOKUP_FAILED',
+      'No se pudo consultar el historial de compras SGX.',
+      error,
+    );
+  }
+
+  const purchaseNumbers = (data || [])
+    .filter((row) => row.status === 'approved' && isPositiveDecimalString(String(row.purchase_number)))
+    .map((row) => String(row.purchase_number))
+    .sort(compareDecimalStrings);
+
+  return purchaseNumbers.map((purchaseNumber) => ({
+    purchase_number: purchaseNumber,
+    is_current: purchaseNumber === currentPurchaseNumber,
+  }));
+}
+
+export async function getSgxMilestoneReadModel(
+  currentPurchaseNumber: string | null,
+): Promise<PublicMilestoneReadModel> {
+  const emptyModel: PublicMilestoneReadModel = {
+    next_milestone: null,
+    current_milestone: null,
+  };
+
+  try {
+    const supabase = getSgxPassSupabase();
+    const { data: milestoneRows, error: milestoneError } = await supabase
+      .from('purchase_milestones')
+      .select('id,purchase_number,status,rules_version')
+      .in('status', ['active', 'reached'])
+      .order('purchase_number', { ascending: true });
+
+    if (milestoneError || !milestoneRows?.length) {
+      return emptyModel;
+    }
+
+    const candidates = milestoneRows
+      .map((row) => ({
+        id: String(row.id),
+        purchaseNumber: String(row.purchase_number),
+        rulesVersion: typeof row.rules_version === 'string' ? row.rules_version.trim() : '',
+      }))
+      .filter((row) => isPositiveDecimalString(row.purchaseNumber) && row.rulesVersion);
+
+    if (!candidates.length) {
+      return emptyModel;
+    }
+
+    const { data: publishedRules, error: rulesError } = await supabase
+      .from('purchase_milestone_rules')
+      .select('milestone_id,version,published_at')
+      .in('milestone_id', candidates.map((row) => row.id))
+      .not('published_at', 'is', null);
+
+    if (rulesError) {
+      return emptyModel;
+    }
+
+    const publishedRuleKeys = new Set(
+      (publishedRules || [])
+        .filter((row) => row.published_at && row.milestone_id && row.version)
+        .map((row) => `${row.milestone_id}:${row.version}`),
+    );
+    const milestones = candidates
+      .filter((row) => publishedRuleKeys.has(`${row.id}:${row.rulesVersion}`))
+      .sort((left, right) => compareDecimalStrings(left.purchaseNumber, right.purchaseNumber));
+
+    if (!milestones.length) {
+      return emptyModel;
+    }
+
+    const current = isPositiveDecimalString(currentPurchaseNumber || '')
+      ? currentPurchaseNumber
+      : null;
+    const currentMilestone = current
+      ? milestones.find((milestone) => milestone.purchaseNumber === current)
+      : null;
+    const nextMilestone = milestones.find((milestone) => !current || compareDecimalStrings(milestone.purchaseNumber, current) > 0);
+
+    return {
+      next_milestone: nextMilestone
+        ? {
+          purchase_number: nextMilestone.purchaseNumber,
+          previous_purchase_number: milestones
+            .filter((milestone) => compareDecimalStrings(milestone.purchaseNumber, nextMilestone.purchaseNumber) < 0)
+            .at(-1)?.purchaseNumber || '0',
+        }
+        : null,
+      current_milestone: currentMilestone
+        ? { purchase_number: currentMilestone.purchaseNumber, reached: true }
+        : null,
+    };
+  } catch {
+    // Milestones remain optional until real rules are published. Never break
+    // the authorized result page if the additive read model is unavailable.
+    return emptyModel;
+  }
 }
 
 export async function getOrCreateSgxPass(customerId: string) {
