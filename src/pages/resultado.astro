@@ -724,34 +724,45 @@ const isDev = import.meta.env.DEV;
   }
 
   .sgxvi-purchase__value {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.45rem;
+    display: block;
     min-width: 0;
     max-width: 100%;
     margin-top: 5px;
   }
 
-  .sgxvi-purchase__label,
-  .sgxvi-purchase__number {
+  .sgxvi-purchase__label {
+    display: block;
     color: #ffe0a1;
     font-size: clamp(1rem, 3vw, 1.25rem);
     letter-spacing: 0.08em;
     line-height: 1;
     overflow-wrap: anywhere;
-  }
-
-  .sgxvi-purchase__label {
     font-family: inherit;
     font-weight: 400;
   }
 
   .sgxvi-purchase__number {
-    display: inline-block;
+    display: block;
+    margin-top: 0.35rem;
     max-width: 100%;
     font-family: "GTA_PRICE_FONT", sans-serif;
     font-weight: 400;
+    font-size: clamp(2.5rem, 8vw, 4rem);
+    line-height: 0.95;
+    letter-spacing: 0.01em;
+    color: #55ff3f;
+    overflow-wrap: anywhere;
+    -webkit-text-stroke: 2px #000;
+    paint-order: stroke fill;
+    text-shadow:
+      2px 0 0 #000,
+      -2px 0 0 #000,
+      0 2px 0 #000,
+      0 -2px 0 #000,
+      2px 2px 0 #000,
+      -2px 2px 0 #000,
+      2px -2px 0 #000,
+      -2px -2px 0 #000;
   }
 
   .sgx-purchase-note {
