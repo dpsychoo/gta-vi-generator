@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { verifyJobAccess } from '../../lib/job-access';
 import { getJob } from '../../lib/job-store';
-import { getSgxPassById } from '../../lib/sgx-pass';
+import { getSgxOrderByJobId, getSgxPassById } from '../../lib/sgx-pass';
 
 export const prerender = false;
 
@@ -36,14 +36,23 @@ export const GET: APIRoute = async ({ url }) => {
   }
 
   let sgxPass: { code: string; status: 'active' | 'suspended' | 'revoked' } | null = null;
-  if (job.status === 'completed' && job.sgxPassId) {
-    try {
-      const pass = await getSgxPassById(job.sgxPassId);
-      if (pass) {
-        sgxPass = { code: pass.publicCode, status: pass.status };
+  let purchaseNumber: string | null = null;
+  if (job.status === 'completed') {
+    if (job.sgxPassId) {
+      try {
+        const pass = await getSgxPassById(job.sgxPassId);
+        if (pass) {
+          sgxPass = { code: pass.publicCode, status: pass.status };
+        }
+      } catch {
+        // La vista del resultado sigue funcionando aunque falle la consulta secundaria del PASS.
       }
+    }
+    try {
+      const order = await getSgxOrderByJobId(job.id);
+      purchaseNumber = order?.purchaseNumber ?? null;
     } catch {
-      // La vista del resultado sigue funcionando aunque falle la consulta secundaria del PASS.
+      // El número es un dato adicional; no debe romper el resultado si falta la Order.
     }
   }
 
@@ -54,6 +63,7 @@ export const GET: APIRoute = async ({ url }) => {
       ? `/api/image?jobId=${encodeURIComponent(job.id)}&token=${encodeURIComponent(accessToken)}`
       : null,
     sgxPass,
+    purchase_number: purchaseNumber,
     error: job.status === 'failed'
       ? job.metadata?.generation_error_category === 'moderation_blocked'
         ? MODERATION_GENERATION_ERROR

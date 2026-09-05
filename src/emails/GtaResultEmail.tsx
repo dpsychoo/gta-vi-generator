@@ -15,6 +15,7 @@ import {
   Text,
 } from 'react-email';
 import type { CSSProperties } from 'react';
+import { formatSgxviPurchaseNumber, PROJECT_PASS_DISPLAY_NAME } from '../lib/sgxvi-branding';
 
 export type GtaResultEmailProps = {
   customerName?: string | null;
@@ -26,6 +27,7 @@ export type GtaResultEmailProps = {
   generatorUrl: string;
   sgxPassCode?: string | null;
   sgxPassStatus?: 'active' | 'suspended' | 'revoked' | null;
+  purchaseNumber?: string | null;
 };
 
 const colors = {
@@ -379,14 +381,16 @@ export function GtaResultEmail({
   generatorUrl,
   sgxPassCode,
   sgxPassStatus,
+  purchaseNumber,
 }: GtaResultEmailProps) {
   const greeting = customerName?.trim() ? `Hola ${customerName.trim()} 👋` : 'Hola 👋';
   const passStatusLabel = getPassStatusLabel(sgxPassStatus);
+  const purchaseLabel = formatSgxviPurchaseNumber(purchaseNumber);
 
   return (
     <Html lang="es">
       <Head />
-      <Preview>Tu imagen SGODX ya está lista. Tu SGX PASS es permanente.</Preview>
+      <Preview>Tu imagen SGODX ya está lista. Tu SGX · VI PASS es permanente.</Preview>
       <Body style={styles.body}>
         <Container style={styles.shell}>
           <Section style={styles.masthead}>
@@ -447,27 +451,38 @@ export function GtaResultEmail({
               </Row>
             </Section>
 
-            {sgxPassCode && (
+            {(sgxPassCode || purchaseLabel) && (
               <Section style={styles.passPanel}>
                 <Text style={styles.passWelcome}>WELCOME TO THE SYSTEM</Text>
-                <Heading as="h2" style={styles.passHeading}>TU SGX PASS</Heading>
+                <Heading as="h2" style={styles.passHeading}>{PROJECT_PASS_DISPLAY_NAME}</Heading>
                 <Text style={styles.passIntro}>
-                  Tu SGX PASS ya forma parte de tu identidad SGODX. Es permanente y conservarás el mismo en futuras experiencias.
+                  Tu {PROJECT_PASS_DISPLAY_NAME} ya forma parte de tu identidad SGODX. Es permanente y conservarás el mismo en futuras experiencias.
                 </Text>
-                <Text style={styles.passLabel}>PASS CODE</Text>
-                <Text style={styles.passCode}>{sgxPassCode}</Text>
-                <Row>
-                  <Column>
-                    <Text style={styles.passLabel}>MEMBERSHIP</Text>
-                    <Text style={styles.passValue}>PERMANENT</Text>
-                  </Column>
-                  <Column align="right">
-                    <Text style={styles.passLabel}>PASS STATUS</Text>
-                    <Text style={styles.passValue}>{passStatusLabel}</Text>
-                  </Column>
-                </Row>
+                {sgxPassCode && (
+                  <>
+                    <Text style={styles.passLabel}>PASS CODE</Text>
+                    <Text style={styles.passCode}>{sgxPassCode}</Text>
+                    <Row>
+                      <Column>
+                        <Text style={styles.passLabel}>MEMBERSHIP</Text>
+                        <Text style={styles.passValue}>PERMANENT</Text>
+                      </Column>
+                      <Column align="right">
+                        <Text style={styles.passLabel}>PASS STATUS</Text>
+                        <Text style={styles.passValue}>{passStatusLabel}</Text>
+                      </Column>
+                    </Row>
+                  </>
+                )}
+                {purchaseLabel && (
+                  <>
+                    <Text style={styles.passLabel}>PURCHASE NUMBER</Text>
+                    <Text style={styles.passValue}>{purchaseLabel}</Text>
+                    <Text style={styles.passFootnote}>Tu número de compra dentro de SGX · VI.</Text>
+                  </>
+                )}
                 <Text style={styles.passFootnote}>
-                  Tu SGX PASS es permanente y se reutilizará en futuras misiones, sorteos, premios, dinámicas y eventos SGODX.
+                  Tu {PROJECT_PASS_DISPLAY_NAME} es permanente y se reutilizará en futuras misiones, sorteos, premios, dinámicas y eventos SGODX.
                 </Text>
                 <Text style={styles.passEligibility}>
                   Cada evento SGODX tendrá sus propias reglas y requisitos de participación.

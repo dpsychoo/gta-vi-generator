@@ -91,7 +91,7 @@ const isDev = import.meta.env.DEV;
 
       <section class="sgx-pass-panel" id="sgxPassPanel" hidden aria-live="polite">
         <div class="sgx-pass-heading">
-          <div class="sgx-pass-eyebrow">SGX PASS</div>
+          <div class="sgx-pass-eyebrow">SGX · VI PASS</div>
           <p class="sgx-pass-subtitle">TU IDENTIDAD EN SGODX</p>
         </div>
         <div class="sgx-pass-code-shell">
@@ -109,7 +109,12 @@ const isDev = import.meta.env.DEV;
             <strong class="sgx-pass-value" id="sgxPassStatus"></strong>
           </div>
         </div>
-        <p class="sgx-pass-note"><strong>Guarda tu SGX PASS.</strong> Será tu código dentro del ecosistema SGODX.</p>
+        <div class="sgx-purchase-panel" id="sgxPurchasePanel" hidden>
+          <span class="sgx-pass-label">PURCHASE NUMBER</span>
+          <strong class="sgx-purchase-number" id="sgxPurchaseNumber"></strong>
+          <p class="sgx-purchase-note">Tu número de compra dentro de SGX · VI.</p>
+        </div>
+        <p class="sgx-pass-note"><strong>Guarda tu SGX · VI PASS.</strong> Será tu código dentro del ecosistema SGODX.</p>
       </section>
 
         <div class="completed-email-note">
@@ -148,6 +153,8 @@ const isDev = import.meta.env.DEV;
     const sgxPassCode = document.getElementById('sgxPassCode');
     const sgxPassMembership = document.getElementById('sgxPassMembership');
     const sgxPassStatus = document.getElementById('sgxPassStatus');
+    const sgxPurchasePanel = document.getElementById('sgxPurchasePanel');
+    const sgxPurchaseNumber = document.getElementById('sgxPurchaseNumber');
     const copySgxPassBtn = document.getElementById('copySgxPassBtn');
     const copySgxPassFeedback = document.getElementById('copySgxPassFeedback');
 
@@ -353,23 +360,37 @@ const isDev = import.meta.env.DEV;
       sgxPassCode.textContent = '';
       sgxPassMembership.textContent = '';
       sgxPassStatus.textContent = '';
+      sgxPurchasePanel.hidden = true;
+      sgxPurchaseNumber.textContent = '';
       copySgxPassBtn.hidden = true;
       copySgxPassFeedback.textContent = '';
     }
 
-    function showSgxPass(pass) {
+    function formatSgxviPurchaseNumber(purchaseNumber) {
+      if (purchaseNumber === null || purchaseNumber === undefined) return '';
+      const normalized = String(purchaseNumber).trim();
+      return /^[1-9][0-9]*$/.test(normalized)
+        ? `SGXVI PURCHASE #${normalized.padStart(6, '0')}`
+        : '';
+    }
+
+    function showSgxPass(pass, purchaseNumber) {
       const code = typeof pass?.code === 'string' ? pass.code : '';
       const status = ['active', 'suspended', 'revoked'].includes(pass?.status) ? pass.status : '';
-      if (!code || !status) {
+      const purchaseLabel = formatSgxviPurchaseNumber(purchaseNumber);
+      if (!code && !purchaseLabel) {
         hideSgxPass();
         return;
       }
 
-      sgxPassCode.textContent = code;
-      sgxPassMembership.textContent = 'PERMANENT';
-      sgxPassStatus.textContent = `● ${status.toUpperCase()}`;
-      copySgxPassBtn.hidden = false;
+      const hasPass = Boolean(code && status);
+      sgxPassCode.textContent = hasPass ? code : '';
+      sgxPassMembership.textContent = hasPass ? 'PERMANENT' : '';
+      sgxPassStatus.textContent = hasPass ? `● ${status.toUpperCase()}` : '';
+      copySgxPassBtn.hidden = !hasPass;
       copySgxPassFeedback.textContent = '';
+      sgxPurchaseNumber.textContent = purchaseLabel;
+      sgxPurchasePanel.hidden = !purchaseLabel;
       sgxPassPanel.hidden = false;
     }
 
@@ -461,7 +482,7 @@ const isDev = import.meta.env.DEV;
         stopPolling();
         completeVisualProgress(() => {
           showCompletedContent();
-          showSgxPass(job.sgxPass);
+          showSgxPass(job.sgxPass, job.purchase_number);
           showCompletedResult();
         });
         return;
@@ -677,6 +698,26 @@ const isDev = import.meta.env.DEV;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
     margin-top: 22px;
+  }
+
+  .sgx-purchase-panel {
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(255, 116, 188, 0.2);
+  }
+
+  .sgx-purchase-number {
+    display: block;
+    margin-top: 5px;
+    color: #ffe0a1;
+    font-size: clamp(1rem, 3vw, 1.25rem);
+    letter-spacing: 0.08em;
+  }
+
+  .sgx-purchase-note {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 0.86rem;
   }
 
   .sgx-pass-label {

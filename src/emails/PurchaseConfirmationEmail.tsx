@@ -11,6 +11,7 @@ import {
   Text,
 } from 'react-email';
 import type { CSSProperties } from 'react';
+import { PROJECT_PASS_DISPLAY_NAME } from '../lib/sgxvi-branding';
 
 export type PurchaseConfirmationEmailProps = {
   customerEmail: string;
@@ -24,6 +25,7 @@ export type PurchaseConfirmationEmailProps = {
   privacyUrl: string;
   refundsUrl: string;
   legalUrl: string;
+  sgxPassCode?: string | null;
 };
 
 const colors = {
@@ -158,6 +160,10 @@ export function PurchaseConfirmationEmail(props: PurchaseConfirmationEmailProps)
               <Text style={styles.value}>Orden: {props.orderId}</Text>
               <Text style={styles.value}>Pago: {props.paymentId}</Text>
               <Text style={styles.value}>Fecha: {props.approvedAt}</Text>
+            </Section>
+            <Section style={styles.card}>
+              <Text style={styles.label}>{PROJECT_PASS_DISPLAY_NAME}</Text>
+              {props.sgxPassCode && <Text style={styles.value}>{props.sgxPassCode}</Text>}
             </Section>
             <Text style={styles.accent}>
               Tu aceptación quedó registrada con Términos {props.termsVersion}, Privacidad {props.privacyVersion} y Reembolsos {props.refundPolicyVersion}.

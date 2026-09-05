@@ -20,6 +20,7 @@ export const GET: APIRoute = async () => {
     generatorUrl: 'https://example.com/',
     sgxPassCode: 'SGX-PREVIEW-0001',
     sgxPassStatus: 'active',
+    purchaseNumber: '4',
   }));
 
   return new Response(html, {

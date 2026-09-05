@@ -37,6 +37,8 @@ export interface SgxOrderRecord {
   currency: string;
   createdAt: string;
   approvedAt?: string | null;
+  // Keep bigint as decimal text; never round it through a JavaScript number.
+  purchaseNumber?: string | null;
   metadata?: Record<string, unknown>;
 }
 
@@ -106,6 +108,9 @@ function mapOrder(row: Record<string, any>): SgxOrderRecord {
     currency: row.currency,
     createdAt: row.created_at,
     approvedAt: row.approved_at,
+    purchaseNumber: row.purchase_number === null || row.purchase_number === undefined
+      ? null
+      : String(row.purchase_number),
     metadata: row.metadata || {},
   };
 }

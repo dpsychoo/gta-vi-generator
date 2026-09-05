@@ -10,7 +10,7 @@ import {
 } from './legal-acceptance';
 import { LEGAL_PATHS } from './legal';
 import { getJob, updateJob } from './job-store';
-import { getSgxPassById, type CustomerRecord, type SgxOrderRecord } from './sgx-pass';
+import { getSgxOrderByJobId, getSgxPassById, type CustomerRecord, type SgxOrderRecord } from './sgx-pass';
 import { getAppBaseUrl, getResendApiKey, getResendFromEmail } from './server/env';
 
 const emailSendInFlight = new Set<string>();
@@ -85,6 +85,13 @@ export async function sendJobResultEmail(jobId: string) {
 
     const { generatorUrl, downloadUrl, resultImageUrl } = getEmailUrls(job);
     const sgxPass = job.sgxPassId ? await getSgxPassById(job.sgxPassId) : null;
+    let purchaseNumber: string | null = null;
+    try {
+      const order = await getSgxOrderByJobId(job.id);
+      purchaseNumber = order?.purchaseNumber ?? null;
+    } catch {
+      // Purchase branding is optional; a lookup failure must not block the result email.
+    }
     const resend = new Resend(apiKey);
     const { error } = await resend.emails.send({
       from: fromEmail,
@@ -100,6 +107,7 @@ export async function sendJobResultEmail(jobId: string) {
         generatorUrl,
         sgxPassCode: sgxPass?.publicCode,
         sgxPassStatus: sgxPass?.status,
+        purchaseNumber,
       })),
     }, {
       idempotencyKey: `job-result/${job.id}`,
@@ -179,6 +187,13 @@ export async function sendPurchaseConfirmationEmail({
 
     const resend = new Resend(apiKey);
     const urls = getLegalEmailUrls();
+    let sgxPassCode: string | null = null;
+    try {
+      const pass = await getSgxPassById(order.sgxPassId);
+      sgxPassCode = pass?.publicCode ?? null;
+    } catch {
+      // The confirmation remains sendable if the optional PASS display lookup fails.
+    }
     const { error } = await resend.emails.send({
       from: fromEmail,
       to: [customer.email],
@@ -191,6 +206,7 @@ export async function sendPurchaseConfirmationEmail({
         termsVersion: acceptance.termsVersion,
         privacyVersion: acceptance.privacyVersion,
         refundPolicyVersion: acceptance.refundPolicyVersion,
+        sgxPassCode,
         ...urls,
       })),
     }, {
