@@ -9,6 +9,9 @@ const privateNoStoreHeaders = {
   'Cache-Control': 'private, no-store, max-age=0',
 };
 
+const GENERIC_GENERATION_ERROR = 'No pudimos generar tu imagen.';
+const MODERATION_GENERATION_ERROR = 'No pudimos procesar una de las imágenes enviadas. No se realizó un nuevo cobro.';
+
 export const GET: APIRoute = async ({ url }) => {
   const jobId = url.searchParams.get('jobId')?.trim() || '';
   const accessToken = url.searchParams.get('token');
@@ -51,7 +54,11 @@ export const GET: APIRoute = async ({ url }) => {
       ? `/api/image?jobId=${encodeURIComponent(job.id)}&token=${encodeURIComponent(accessToken)}`
       : null,
     sgxPass,
-    error: job.status === 'failed' ? (job.errorMessage || 'La generación falló') : null,
+    error: job.status === 'failed'
+      ? job.metadata?.generation_error_category === 'moderation_blocked'
+        ? MODERATION_GENERATION_ERROR
+        : GENERIC_GENERATION_ERROR
+      : null,
   };
 
   return new Response(JSON.stringify(safePayload), {

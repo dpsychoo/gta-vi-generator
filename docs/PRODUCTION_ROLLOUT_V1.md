@@ -14,6 +14,20 @@ Esta fase implementa y prueba archivos locales: Migration D, helper/webhook,
 backfill revisado y postflight/monitoreo D. El siguiente procedimiento requiere
 una ventana autorizada; no se aplica, despliega ni abre live ahora.
 
+## Moderación OpenAI: recuperación controlada
+
+Si OpenAI devuelve exactamente HTTP 400 con `error_code=moderation_blocked`,
+la clasificación se conserva en `jobs.metadata` con valores allowlisted y
+`jobs.error_message` permanece neutral para el cliente. El fallback
+`omit_input2` es exclusivamente administrativo, requiere autorización
+explícita y una sola tentativa con `master + input1`; no se activa desde el
+webhook, no reintenta automáticamente y no modifica las imágenes almacenadas.
+
+Si esa tentativa vuelve a recibir `moderation_blocked`, el Job queda `failed`,
+se detiene el recovery y no se intenta `input2` solo ni ninguna transformación
+para eludir moderación. El operador debe seguir posteriormente la política de
+reemplazo de imagen o refund que se apruebe por separado.
+
 **NO-GO para activar live ahora.** Además de aplicar D y completar el corte,
 hay que validar fairness real en PostgreSQL con dos sesiones. El contrato
 recomendado es orden de admisión de aprobaciones en el registro de SGODX,

@@ -51,6 +51,7 @@ async function compile(useBaseline = false) {
       "export { POST } from './src/pages/api/admin/retry-generation.ts';",
       "export { getJob, claimFailedApprovedJobForRecovery } from './src/lib/job-store.ts';",
       "export { processPaidJob } from './src/lib/openai.ts';",
+      "export { GET as GET_JOB_STATUS } from './src/pages/api/job-status.ts';",
       "export * from './src/lib/generation-observability.ts';",
     ].join('\n'), resolveDir: process.cwd(), loader: 'ts' },
     bundle: true, write: false, platform: 'node', format: 'cjs', target: 'node20',
@@ -62,7 +63,7 @@ async function compile(useBaseline = false) {
         const replacements = new Map([
           ['supabase', serviceMock],
           ['astro:env/server', 'export const getSecret = name => globalThis.h.secrets[name];'],
-          ['job-access', "export const decryptJobAccessToken = () => 'offline-capability';"],
+          ['job-access', "export const decryptJobAccessToken = () => 'offline-capability'; export const verifyJobAccess = () => true;"],
           ['react', 'export const createElement = () => ({});'],
           ['react-email', "export const render = async () => '<p>Offline email fixture</p>';"],
           ['resend', 'export class Resend { emails = { send: (...args) => globalThis.h.send(...args) }; }'],
@@ -122,7 +123,17 @@ class Query {
     if ((h.fail === 'db_completion' && this.payload?.status === 'completed')
       || (h.fail === 'claim' && this.payload?.status === 'processing')) return { data: null, error: { message: sensitive, code: '40001' } };
     assert(Object.hasOwn(h.tables, this.table), 'Unexpected table: ' + this.table);
-    const row = h.tables[this.table].find((candidate) => this.filters.every(([key, value]) => candidate[key] === value));
+    const valueAt = (candidate, key) => {
+      if (key.includes('->>')) {
+        const [column, jsonKey] = key.split('->>');
+        return candidate[column]?.[jsonKey];
+      }
+      return candidate[key];
+    };
+    const row = h.tables[this.table].find((candidate) => this.filters.every(([key, value]) => {
+      const actual = valueAt(candidate, key);
+      return (actual === undefined ? null : actual) === value;
+    }));
     if (row && this.payload) { Object.assign(row, plain(this.payload)); h.writes++; }
     return { data: row ? plain(row) : null, error: null };
   }
@@ -174,9 +185,17 @@ function fixture() {
     if (h.hold) await h.hold;
     if (h.fail === 'openai_request') throw Object.assign(new Error(sensitive), { code: 'ECONNRESET' });
     const headers = { 'x-request-id': requestId, 'Content-Type': 'application/json' };
-    if (h.fail === 'openai_http') return new Response(JSON.stringify({ error: {
-      code: 'rate_limit_exceeded', type: 'rate_limit_error', message: sensitive,
-    } }), { status: 429, headers });
+    if (['openai_http', 'openai_bad_request', 'openai_server', 'openai_moderation'].includes(h.fail)) {
+      return new Response(JSON.stringify({ error: {
+        code: h.fail === 'openai_moderation' ? 'moderation_blocked'
+          : h.fail === 'openai_bad_request' ? 'invalid_request_error'
+            : h.fail === 'openai_server' ? 'server_error' : 'rate_limit_exceeded',
+        type: h.fail === 'openai_moderation' ? 'image_generation_user_error'
+          : h.fail === 'openai_bad_request' ? 'invalid_request_error'
+            : h.fail === 'openai_server' ? 'api_error' : 'rate_limit_error', message: sensitive,
+      } }), { status: h.fail === 'openai_moderation' || h.fail === 'openai_bad_request' ? 400
+        : h.fail === 'openai_server' ? 500 : 429, headers });
+    }
     if (h.fail === 'openai_json') return new Response('not json', { headers });
     if (h.fail === 'openai_b64') return new Response(JSON.stringify({ data: [] }), { headers });
     return new Response(JSON.stringify({ data: [{ b64_json: h.fail === 'output_decode'
@@ -197,12 +216,12 @@ const stable = await compile(true);
 const job = (h) => h.tables.jobs[0];
 const commercial = (h) => plain({ orders: h.tables.orders, customers: h.tables.customers, passes: h.tables.sgx_passes });
 const failures = (h) => h.logs.map((entry) => entry.args[0]).filter((entry) => entry?.event === 'generation_failure');
-async function invoke(h, options = {}) {
-  current.use(h);
+async function invokeWith(runtime, h, options = {}) {
+  runtime.use(h);
   const method = options.method ?? 'POST';
   const headers = { 'Content-Type': options.contentType ?? 'application/json' };
   if (options.auth !== null) headers.Authorization = options.auth ?? 'Bearer ' + adminSecret;
-  const response = await current.api.POST({ request: new Request('https://offline.invalid/api/admin/retry-generation' + (options.query ?? ''), {
+  const response = await runtime.api.POST({ request: new Request('https://offline.invalid/api/admin/retry-generation' + (options.query ?? ''), {
     method, headers, ...(method === 'POST' ? { body: options.rawBody ?? JSON.stringify(options.body ?? { job_id: jobId }) } : {}),
   }) });
   assert.equal(response.headers.get('cache-control'), 'no-store');
@@ -210,6 +229,16 @@ async function invoke(h, options = {}) {
   const body = await response.json();
   assert.deepEqual(Object.keys(body).sort(), ['ok', 'outcome']);
   return { status: response.status, ...body };
+}
+async function invoke(h, options = {}) {
+  return invokeWith(current, h, options);
+}
+async function invokeJobStatus(h) {
+  current.use(h);
+  const response = await current.api.GET_JOB_STATUS({
+    url: new URL('https://offline.invalid/api/job-status?jobId=' + jobId + '&token=offline-token'),
+  });
+  return response.json();
 }
 let passed = 0;
 async function check(name, run) { await run(); passed++; console.log('PASS ' + name); }
@@ -355,6 +384,83 @@ const failureStages = {
   openai_request: 'openai_request', openai_http: 'openai_response', openai_json: 'openai_response',
   openai_b64: 'openai_response', output_decode: 'output_decode', storage_upload: 'storage_upload', db_completion: 'db_completion',
 };
+await check('moderation classification, neutral status and explicit omit_input2 recovery', async () => {
+  const h = fixture();
+  h.fail = 'openai_moderation';
+  job(h).status = 'processing';
+  current.use(h);
+  await assert.rejects(() => current.api.processPaidJob(jobId));
+  assert.equal(job(h).status, 'failed');
+  assert.equal(job(h).error_message, 'No pudimos procesar una de las imágenes enviadas.');
+  assert.deepEqual({
+    generation_error_category: job(h).metadata.generation_error_category,
+    provider: job(h).metadata.provider,
+    provider_status: job(h).metadata.provider_status,
+    provider_error_code: job(h).metadata.provider_error_code,
+    provider_error_type: job(h).metadata.provider_error_type,
+  }, {
+    generation_error_category: 'moderation_blocked', provider: 'openai', provider_status: 400,
+    provider_error_code: 'moderation_blocked', provider_error_type: 'image_generation_user_error',
+  });
+  const status = await invokeJobStatus(h);
+  assert.equal(status.error, 'No pudimos procesar una de las imágenes enviadas. No se realizó un nuevo cobro.');
+  assert(!JSON.stringify(status).includes('moderation_blocked'));
+  assert(!JSON.stringify(status).includes('image_generation_user_error'));
+
+  const inputs = [job(h).input_image_1_path, job(h).input_image_2_path];
+  h.fail = null;
+  assert.equal((await invoke(h, { body: { job_id: jobId, strategy: 'omit_input2' } })).outcome, 'completed');
+  assert.deepEqual([job(h).input_image_1_path, job(h).input_image_2_path], inputs);
+  assert.equal(job(h).metadata.generation_strategy, 'omit_input2');
+  assert.equal(job(h).metadata.inputCount, 2);
+  assert.deepEqual(h.forms.at(-1).filter(([key]) => key === 'image[]').map(([, value]) => value.name), ['master.webp', 'input-1.jpg']);
+  assert.equal(h.emails.length, 1);
+  assert.deepEqual(commercial(h), { orders: h.tables.orders, customers: h.tables.customers, passes: h.tables.sgx_passes });
+});
+
+await check('fallback is explicit, legacy-compatible, single-attempt and category-gated', async () => {
+  const legacy = fixture();
+  assert.equal((await invoke(legacy, { body: { job_id: jobId, strategy: 'omit_input2' } })).outcome, 'completed');
+  assert.deepEqual(legacy.forms[0].filter(([key]) => key === 'image[]').map(([, value]) => value.name), ['master.webp', 'input-1.jpg']);
+
+  const invalidStrategy = fixture();
+  assert.equal((await invoke(invalidStrategy, { body: { job_id: jobId, strategy: 'default' } })).status, 400);
+  assert.equal(invalidStrategy.calls.length, 0);
+  const missingInput2 = fixture(); missingInput2.tables.jobs[0].input_image_2_path = null;
+  assert.equal((await invoke(missingInput2, { body: { job_id: jobId, strategy: 'omit_input2' } })).outcome, 'not_recoverable');
+  assert.equal(missingInput2.requests, 0);
+
+  for (const fail of ['openai_bad_request', 'openai_server', 'openai_request']) {
+    const otherFailure = fixture(); otherFailure.fail = fail; job(otherFailure).status = 'processing';
+    current.use(otherFailure);
+    await assert.rejects(() => current.api.processPaidJob(jobId));
+    otherFailure.fail = null;
+    assert.equal((await invoke(otherFailure, { body: { job_id: jobId, strategy: 'omit_input2' } })).outcome, 'not_recoverable');
+    assert.equal(otherFailure.requests, 1);
+  }
+});
+
+await check('second moderation block returns failed and never retries or transforms inputs', async () => {
+  const h = fixture(); h.fail = 'openai_moderation';
+  assert.equal((await invoke(h, { body: { job_id: jobId, strategy: 'omit_input2' } })).outcome, 'generation_failed');
+  assert.equal(job(h).status, 'failed');
+  assert.equal(job(h).metadata.generation_error_category, 'moderation_blocked');
+  assert.equal(job(h).metadata.generation_fallback_strategy, 'omit_input2');
+  assert(job(h).metadata.generation_fallback_attempted_at);
+  assert.equal(job(h).metadata.generation_strategy, undefined);
+  assert.equal(h.requests, 1);
+  assert.equal(h.emails.length, 0);
+  assert.equal(job(h).input_image_2_path, jobId + '/input-2.png');
+
+  // A fresh bundled runtime sees the durable DB marker; no process memory is
+  // involved. Both explicit fallback and the default strategy are blocked.
+  const restarted = await compile();
+  h.fail = null;
+  assert.equal((await invokeWith(restarted, h, { body: { job_id: jobId, strategy: 'omit_input2' } })).outcome, 'not_recoverable');
+  assert.equal((await invokeWith(restarted, h, { body: { job_id: jobId } })).outcome, 'not_recoverable');
+  assert.equal(h.requests, 1);
+});
+
 await check('failure injection: each real stage logs once, returns failed, preserves payment/inputs/Order; retry remains possible', async () => {
   for (const [fail, stage] of Object.entries(failureStages)) {
     const h = fixture(); h.fail = fail; const before = commercial(h); const inputs = [job(h).input_image_1_path, job(h).input_image_2_path];
@@ -397,7 +503,13 @@ async function runNormal(runtime, fail, twoInputs) {
   try { outcome = { result: await runtime.api.processPaidJob(jobId) }; }
   catch (error) { outcome = { error: { name: error.name, message: error.message, statusCode: error.statusCode,
     openAIHttpStatus: error.openAIHttpStatus, requestId: error.requestId, cause: error.cause?.message } }; }
-  return plain({ outcome, tables: h.tables, events: h.events, forms: h.forms, objects: h.objects, emails: h.emails });
+  const tables = plain(h.tables);
+  for (const failedJob of tables.jobs) {
+    if (failedJob.status === 'failed' && failedJob.metadata?.generation_error_category === 'generation_failed') {
+      delete failedJob.metadata.generation_error_category;
+    }
+  }
+  return plain({ outcome, tables, events: h.events, forms: h.forms, objects: h.objects, emails: h.emails });
 }
 await check('HEAD differential: identical request/bytes/order/MIME/output/metadata/email/error propagation in 38 scenarios', async () => {
   for (const twoInputs of [false, true]) {
@@ -421,5 +533,12 @@ await check('static boundaries: unchanged normal claim, lazy env, no numbering o
   assert(read('src/lib/server/env.ts').includes("return getOptionalServerEnv('GENERATION_RECOVERY_SECRET')"));
   assert(!read('astro.config.mjs').includes('GENERATION_RECOVERY_SECRET'));
   assert(read('src/lib/openai.ts').includes('const OPENAI_TIMEOUT_MS = 4 * 60 * 1000;'));
+  const webhook = read('src/pages/api/mercadopago-webhook.ts');
+  assert(!webhook.includes('omit_input2'));
+  assert(!webhook.includes('generationStrategy'));
+  assert(route.includes("generation_fallback_strategy: 'omit_input2'"));
+  assert(route.includes("metadata->>generation_fallback_strategy"));
+  assert(route.includes("job.metadata?.generation_fallback_strategy === 'omit_input2'"));
+  assert(route.includes("job.metadata?.generation_error_category === 'moderation_blocked'"));
 });
 console.log('generation recovery tests: PASS (' + passed + ' groups; all service calls mocked, zero external I/O)');

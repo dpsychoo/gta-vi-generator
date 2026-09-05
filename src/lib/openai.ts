@@ -45,6 +45,12 @@ interface OpenAIErrorResponse {
   };
 }
 
+export type GenerationStrategy = 'default' | 'omit_input2';
+export type GenerationErrorCategory = 'generation_failed' | 'moderation_blocked';
+
+const CUSTOMER_GENERATION_FAILURE_MESSAGE = 'No se pudo completar la generación de la imagen.';
+const CUSTOMER_MODERATION_MESSAGE = 'No pudimos procesar una de las imágenes enviadas.';
+
 export interface DevelopmentGenerationResult {
   jobId: string;
   previousStatus: JobStatus;
@@ -60,6 +66,9 @@ export class DevelopmentGenerationError extends Error {
   readonly openAIHttpStatus: number | null;
   readonly requestId: string | null;
   readonly errorCode: string | null;
+  readonly providerErrorType: string | null;
+  readonly generationErrorCategory: GenerationErrorCategory;
+  readonly customerMessage: string;
 
   constructor(
     message: string,
@@ -68,6 +77,9 @@ export class DevelopmentGenerationError extends Error {
       openAIHttpStatus?: number | null;
       requestId?: string | null;
       errorCode?: string | null;
+      providerErrorType?: string | null;
+      generationErrorCategory?: GenerationErrorCategory;
+      customerMessage?: string;
       cause?: unknown;
     } = {},
   ) {
@@ -77,6 +89,9 @@ export class DevelopmentGenerationError extends Error {
     this.openAIHttpStatus = options.openAIHttpStatus ?? null;
     this.requestId = options.requestId ?? null;
     this.errorCode = options.errorCode ?? null;
+    this.providerErrorType = options.providerErrorType ?? null;
+    this.generationErrorCategory = options.generationErrorCategory ?? 'generation_failed';
+    this.customerMessage = options.customerMessage ?? CUSTOMER_GENERATION_FAILURE_MESSAGE;
   }
 }
 
@@ -165,12 +180,34 @@ async function readOpenAIErrorBody(response: Response): Promise<OpenAIErrorRespo
   }
 }
 
-async function markJobFailed(jobId: string, message: string) {
+function failureMetadata(baseMetadata: Record<string, unknown> | undefined, error: DevelopmentGenerationError) {
+  const metadata = { ...(baseMetadata || {}), generation_error_category: error.generationErrorCategory };
+
+  if (error.generationErrorCategory === 'moderation_blocked') {
+    metadata.provider = 'openai';
+    metadata.provider_status = 400;
+    metadata.provider_error_code = 'moderation_blocked';
+    const providerErrorType = safeProviderToken(error.providerErrorType);
+    if (providerErrorType) {
+      metadata.provider_error_type = providerErrorType;
+    }
+  }
+
+  return metadata;
+}
+
+async function markJobFailed(
+  jobId: string,
+  message: string,
+  metadata?: Record<string, unknown>,
+) {
   try {
-    await updateJob(jobId, {
+    const updates: Partial<JobRecord> = {
       status: 'failed',
       errorMessage: message,
-    });
+    };
+    if (metadata) updates.metadata = metadata;
+    await updateJob(jobId, updates);
   } catch {
     if (import.meta.env.DEV) {
       console.error('No se pudo guardar el estado failed del job.');
@@ -247,6 +284,7 @@ async function generateResultImageInternal(
   jobId: string,
   authorization: 'development' | 'mercadopago',
   context: GenerationContext,
+  generationStrategy: GenerationStrategy,
 ): Promise<DevelopmentGenerationResult> {
   markGenerationStage(jobId, context, 'preflight', 'started');
 
@@ -300,6 +338,10 @@ async function generateResultImageInternal(
     throw new DevelopmentGenerationError('El job no tiene input_image_1_path.', { statusCode: 400 });
   }
 
+  if (generationStrategy === 'omit_input2' && !job.inputImage2Path) {
+    throw new DevelopmentGenerationError('El job no tiene input_image_2_path.', { statusCode: 400 });
+  }
+
   markGenerationStage(jobId, context, 'preflight', 'completed');
 
   const previousStatus = job.status;
@@ -327,7 +369,7 @@ async function generateResultImageInternal(
     );
     markGenerationStage(jobId, context, 'input_1_download', 'completed');
 
-    const secondary = job.inputImage2Path
+    const secondary = generationStrategy === 'omit_input2' ? null : job.inputImage2Path
       ? await (async () => {
         markGenerationStage(jobId, context, 'input_2_download', 'started');
         const loaded = await loadPrivateImage(getSupabaseUploadsBucket(), job.inputImage2Path!, 'customer-2.jpg');
@@ -380,12 +422,18 @@ async function generateResultImageInternal(
     if (!response.ok) {
       const errorBody = await readOpenAIErrorBody(response);
       const message = getSanitizedOpenAIErrorMessage(response.status, errorBody);
+      const providerCode = safeProviderToken(errorBody?.error?.code);
+      const providerErrorType = safeProviderToken(errorBody?.error?.type);
+      const isModerationBlocked = response.status === 400 && providerCode === 'moderation_blocked';
       logOpenAIResponse(jobId, response.status, requestId, message, errorBody);
       throw new DevelopmentGenerationError(message, {
         statusCode: 502,
         openAIHttpStatus: response.status,
         requestId,
-        errorCode: safeProviderToken(errorBody?.error?.code),
+        errorCode: providerCode,
+        providerErrorType,
+        generationErrorCategory: isModerationBlocked ? 'moderation_blocked' : 'generation_failed',
+        customerMessage: isModerationBlocked ? CUSTOMER_MODERATION_MESSAGE : CUSTOMER_GENERATION_FAILURE_MESSAGE,
       });
     }
 
@@ -455,6 +503,7 @@ async function generateResultImageInternal(
         provider: 'openai',
         model: OPENAI_IMAGE_MODEL,
         inputCount: secondary ? 3 : 2,
+        ...(generationStrategy === 'omit_input2' ? { generation_strategy: 'omit_input2' } : {}),
         openAIRequestId: requestId,
         outputSize: outputBuffer.length,
         outputGeneratedAt: new Date().toISOString(),
@@ -484,7 +533,7 @@ async function generateResultImageInternal(
   } catch (error) {
     const safeError = asDevelopmentGenerationError(error);
     if (didStartProcessing) {
-      await markJobFailed(jobId, safeError.message);
+      await markJobFailed(jobId, safeError.customerMessage, failureMetadata(job.metadata, safeError));
     }
     throw safeError;
   }
@@ -493,11 +542,12 @@ async function generateResultImageInternal(
 async function generateResultImage(
   jobId: string,
   authorization: 'development' | 'mercadopago',
+  generationStrategy: GenerationStrategy = 'default',
 ): Promise<DevelopmentGenerationResult> {
   const context: GenerationContext = { stage: 'preflight' };
 
   try {
-    return await generateResultImageInternal(jobId, authorization, context);
+    return await generateResultImageInternal(jobId, authorization, context, generationStrategy);
   } catch (error) {
     logGenerationFailure(jobId, context.stage, error);
     throw error;
@@ -508,14 +558,22 @@ export function generateDevelopmentResultImage(jobId: string) {
   return generateResultImage(jobId, 'development');
 }
 
-export async function processPaidJob(jobId: string) {
+export async function processPaidJob(
+  jobId: string,
+  options: { generationStrategy?: GenerationStrategy } = {},
+) {
   try {
-    return await generateResultImage(jobId, 'mercadopago');
+    return await generateResultImage(jobId, 'mercadopago', options.generationStrategy ?? 'default');
   } catch (error) {
     try {
       const job = await getJob(jobId);
       if (job?.status === 'processing' && job.paymentStatus === 'approved') {
-        await markJobFailed(jobId, 'No se pudo completar la generación de la imagen.');
+        const safeError = asDevelopmentGenerationError(error);
+        await markJobFailed(
+          jobId,
+          safeError.customerMessage,
+          failureMetadata(job.metadata, safeError),
+        );
       }
     } catch {
       if (import.meta.env.DEV) {
