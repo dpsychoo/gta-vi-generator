@@ -4,7 +4,9 @@ import '../styles/global.css';
 import '../styles/hero.css';
 import { Image } from 'astro:assets';
 import fondoOriginal from '../assets/fondo-original.png';
+import fondoMobile from '../assets/fondo-mobile.jpeg';
 import heroGt6SinFondo from '../assets/hero-gt6-sin-fondo.png';
+import heroGt6SinFondoMobile from '../assets/hero-gt6-sin-fondo-mobile.png';
 import rockstarLogo from '../assets/rockstar-logo.svg';
 import trailerLogo from '../assets/trailer-logo.svg';
 ---
@@ -20,8 +22,25 @@ import trailerLogo from '../assets/trailer-logo.svg';
 
 <div class="hero-wrapper">  
   <div class="hero-container">
-    <Image src={fondoOriginal} class="background-image" alt="GTA VI background" loading="eager" />
-    <Image src={heroGt6SinFondo} class="characters-image" alt="GTA VI characters" loading="eager" />
+    <picture
+      class="background-picture"
+      style={`--hero-mobile-background: url(${fondoMobile.src})`}
+    >
+      <source
+        media="(max-width: 768px) and (orientation: portrait)"
+        srcset={fondoMobile.src}
+        type="image/jpeg"
+      />
+      <Image src={fondoOriginal} class="background-image" alt="GTA VI background" loading="eager" />
+    </picture>
+    <picture class="characters-picture">
+      <source
+        media="(max-width: 768px) and (orientation: portrait)"
+        srcset={heroGt6SinFondoMobile.src}
+        type="image/png"
+      />
+      <Image src={heroGt6SinFondo} class="characters-image" alt="GTA VI characters" loading="eager" />
+    </picture>
     <div class="reveal-text">
       grand<br><span class="theft-offset">theft</span><br><span class="auto-offset">auto</span>
     </div>

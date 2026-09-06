@@ -16,6 +16,9 @@ export default function HeroAnimation() {
       }
 
       gsap.registerPlugin(ScrollTrigger);
+      const isMobilePortrait = window.matchMedia(
+        "(max-width: 768px) and (orientation: portrait)",
+      ).matches;
 
       const LenisModule = await import("lenis");
       const Lenis = LenisModule.default || LenisModule;
@@ -173,7 +176,7 @@ export default function HeroAnimation() {
       tl.to(
         ".hero-container .background-image",
         {
-          scale: 1.65,
+          scale: isMobilePortrait ? 1.75 : 1.65,
           duration: 4.2,
           ease: "none",
         },
