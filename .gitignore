@@ -11,6 +11,9 @@ node_modules/
 # local runtime data
 .data/
 
+# local cinematic source master
+public/media/source/
+
 # Vercel local/generated files
 .vercel/
 

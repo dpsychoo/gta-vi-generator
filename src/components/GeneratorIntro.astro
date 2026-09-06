@@ -1,0 +1,295 @@
+---
+import { Image } from 'astro:assets';
+import viLogo from '../assets/vi.webp';
+---
+
+<section class="cinematic-generator-intro" id="generator-intro" aria-label="GTA VI intro">
+  <div class="cinematic-generator-intro__sticky">
+    <div class="cinematic-generator-intro__fallback" aria-hidden="true"></div>
+
+    <video
+      class="cinematic-generator-intro__video"
+      poster="/media/cinematic/sgxvi-vi-logo-scrub-poster.jpg"
+      preload="metadata"
+      muted
+      playsinline
+      aria-hidden="true"
+      tabindex="-1"
+    >
+      <source src="/media/cinematic/sgxvi-vi-logo-scrub.mp4" type="video/mp4" />
+    </video>
+
+    <div class="cinematic-generator-intro__blackout" aria-hidden="true"></div>
+
+    <div class="cinematic-generator-intro__final-composition">
+      <div class="cinematic-generator-intro__static-logo" aria-hidden="true">
+        <Image src={viLogo} alt="" class="cinematic-generator-intro__static-logo-image" loading="eager" />
+      </div>
+
+      <div class="cinematic-generator-intro__headline">
+        <h1 class="release-date">
+          <span class="cinematic-generator-intro__headline-line">Generar</span>
+          <span class="cinematic-generator-intro__headline-line">imagen GTA VI</span>
+          <span class="cinematic-generator-intro__headline-line">en 1 CLICK!</span>
+        </h1>
+      </div>
+    </div>
+  </div>
+
+  <div class="cinematic-generator-intro__takeover-spacer" aria-hidden="true"></div>
+
+  <div class="cinematic-generator-intro__flow-panel" aria-hidden="true">
+    <div class="cinematic-generator-intro__final-composition">
+      <div class="cinematic-generator-intro__static-logo" aria-hidden="true">
+        <Image src={viLogo} alt="" class="cinematic-generator-intro__static-logo-image" loading="eager" />
+      </div>
+
+      <div class="cinematic-generator-intro__headline">
+        <h1 class="release-date">
+          <span class="cinematic-generator-intro__headline-line">Generar</span>
+          <span class="cinematic-generator-intro__headline-line">imagen GTA VI</span>
+          <span class="cinematic-generator-intro__headline-line">en 1 CLICK!</span>
+        </h1>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  const introSection = document.querySelector('.cinematic-generator-intro');
+  const introSticky = introSection?.querySelector('.cinematic-generator-intro__sticky');
+  const introFlowPanel = introSection?.querySelector('.cinematic-generator-intro__flow-panel');
+  const introVideo = introSection?.querySelector('.cinematic-generator-intro__video');
+  const introFallback = introSection?.querySelector('.cinematic-generator-intro__fallback');
+  const introBlackout = introSection?.querySelector('.cinematic-generator-intro__blackout');
+  const introStaticLogo = introSection?.querySelector('.cinematic-generator-intro__static-logo');
+  const introStaticLogoImage = introSection?.querySelector('.cinematic-generator-intro__static-logo-image');
+  const introHeadline = introSection?.querySelector('.cinematic-generator-intro__headline');
+  const introHeadlineLines = introSection
+    ? Array.from(introSection.querySelectorAll('.cinematic-generator-intro__headline-line'))
+    : [];
+
+  if (
+    introSection &&
+    introSticky &&
+    introFlowPanel &&
+    introVideo &&
+    introFallback &&
+    introBlackout &&
+    introStaticLogo &&
+    introStaticLogoImage &&
+    introHeadline
+  ) {
+    const sourceDuration = 6;
+    const visualStartTime = 0.4;
+    const videoStart = 0;
+    const videoEnd = 0.66;
+    const crossfadeStart = 0.66;
+    const crossfadeEnd = 0.73;
+    const settleStart = 0.71;
+    const settleEnd = 0.8;
+    const headlineStart = 0.74;
+    const headlineEnd = 0.86;
+    const exitStart = 0.95;
+    const mediaFadeEnd = 0.02;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let rafId = 0;
+    let sectionTop = 0;
+    let flowPanelTop = 0;
+    let visualStartScrollY = 0;
+    let visualEndScrollY = 1;
+    let visualScrollRange = 1;
+    let videoLoadRequested = false;
+    let videoFailed = false;
+    let flowHandoffComplete = false;
+    let settledLogoSize = 0;
+    let largeLogoSize = 0;
+    let largeLogoOffset = 0;
+    let settledLogoOffset = 0;
+
+    const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+    const smoothStep = (value) => {
+      const progress = clamp(value, 0, 1);
+      return progress * progress * (3 - 2 * progress);
+    };
+
+    const measureIntro = () => {
+      sectionTop = introSection.getBoundingClientRect().top + window.scrollY;
+      visualStartScrollY = sectionTop - window.innerHeight;
+      flowPanelTop = introFlowPanel.getBoundingClientRect().top + window.scrollY;
+      visualScrollRange = Math.max(flowPanelTop - visualStartScrollY, 1);
+      visualEndScrollY = visualStartScrollY + visualScrollRange;
+
+      const viewportWidth = window.innerWidth;
+      const isPhone = viewportWidth <= 480;
+      const isTablet = viewportWidth <= 768;
+      const settledRatio = isPhone ? 0.35 : isTablet ? 0.25 : 0.13;
+      const largeRatio = isTablet ? 0.94 : 0.56;
+
+      settledLogoSize = Math.min(viewportWidth * settledRatio, 450);
+      largeLogoSize = Math.min(viewportWidth * largeRatio, isTablet ? 560 : 860);
+      settledLogoOffset = 0;
+      introStaticLogo.style.setProperty('--logo-settled-size', `${settledLogoSize}px`);
+      introStaticLogoImage.style.setProperty('--logo-settled-size', `${settledLogoSize}px`);
+      introStaticLogoImage.style.setProperty('--logo-large-size', `${largeLogoSize}px`);
+      introSection.style.setProperty('--logo-settled-size', `${settledLogoSize}px`);
+      introSection.style.setProperty('--logo-large-size', `${largeLogoSize}px`);
+
+      const videoRect = introVideo.getBoundingClientRect();
+      const staticLogoRect = introStaticLogo.getBoundingClientRect();
+      largeLogoOffset =
+        videoRect.top + videoRect.height / 2 - (staticLogoRect.top + staticLogoRect.height / 2);
+      introVideo.style.setProperty('--video-scale', isTablet ? '1.7' : '1');
+      introFallback.style.setProperty('--video-scale', isTablet ? '1.7' : '1');
+    };
+
+    const getProgress = () =>
+      clamp((window.scrollY - visualStartScrollY) / visualScrollRange, 0, 1);
+
+    const requestVideoLoad = () => {
+      if (!videoLoadRequested && !videoFailed) {
+        videoLoadRequested = true;
+        if (introVideo.readyState < 2) {
+          introVideo.load();
+        }
+      }
+    };
+
+    const getVideoDuration = () =>
+      Number.isFinite(introVideo.duration) && introVideo.duration > 0
+        ? introVideo.duration
+        : sourceDuration;
+
+    const renderIntro = () => {
+      rafId = 0;
+      measureIntro();
+
+      const progress = getProgress();
+      const reduced = reducedMotion.matches;
+      const stageActive =
+        window.scrollY >= visualStartScrollY && window.scrollY < visualEndScrollY;
+      const stageExitProgress = smoothStep((progress - exitStart) / (1 - exitStart));
+      const crossfadeProgress = smoothStep((progress - crossfadeStart) / (crossfadeEnd - crossfadeStart));
+      const settleProgress = smoothStep((progress - settleStart) / (settleEnd - settleStart));
+      const headlineProgress = smoothStep((progress - headlineStart) / (headlineEnd - headlineStart));
+      const headlineFinal = reduced || progress >= headlineEnd;
+      const staticLogoProgress = videoFailed
+        ? smoothStep((progress - videoStart) / (crossfadeEnd - videoStart))
+        : crossfadeProgress;
+
+      if (progress >= 1) {
+        if (!flowHandoffComplete) {
+          introSticky.classList.remove('cinematic-generator-intro__sticky--active');
+          introSticky.style.opacity = '0';
+          introSticky.setAttribute('aria-hidden', 'true');
+          introFlowPanel.classList.add('cinematic-generator-intro__flow-panel--visible');
+          introFlowPanel.style.opacity = '1';
+          introFlowPanel.setAttribute('aria-hidden', 'false');
+          flowHandoffComplete = true;
+        }
+        return;
+      }
+
+      flowHandoffComplete = false;
+      introSticky.classList.toggle('cinematic-generator-intro__sticky--active', stageActive);
+      introSticky.style.opacity = stageActive ? String(1 - stageExitProgress) : '0';
+      introSticky.setAttribute('aria-hidden', stageActive ? 'false' : 'true');
+      const flowHandoffActive = stageActive && progress >= exitStart;
+      introFlowPanel.classList.toggle(
+        'cinematic-generator-intro__flow-panel--visible',
+        flowHandoffActive,
+      );
+      introFlowPanel.style.opacity = flowHandoffActive ? String(stageExitProgress) : '0';
+      introFlowPanel.setAttribute('aria-hidden', 'true');
+      introBlackout.style.opacity = '0';
+      introBlackout.style.visibility = 'hidden';
+
+      if (reduced || videoFailed) {
+        introVideo.style.opacity = '0';
+        introFallback.style.opacity = videoFailed && progress >= videoStart ? '1' : '0';
+      } else {
+        const videoFadeOut = progress <= crossfadeStart ? 1 : 1 - crossfadeProgress;
+        const videoFadeIn = smoothStep(progress / mediaFadeEnd);
+        introVideo.style.opacity = String(videoFadeIn * videoFadeOut);
+        introFallback.style.opacity = '0';
+      }
+
+      introStaticLogo.style.opacity = String(
+        reduced ? (progress >= videoStart ? 1 : 0) : staticLogoProgress,
+      );
+
+      const videoTime = reduced
+        ? getVideoDuration()
+        : visualStartTime +
+          clamp((progress - videoStart) / (videoEnd - videoStart), 0, 1) *
+            (getVideoDuration() - visualStartTime);
+
+      if (!reduced && !videoFailed && introVideo.readyState >= 1) {
+        if (Math.abs(introVideo.currentTime - videoTime) > 0.004) {
+          introVideo.currentTime = videoTime;
+        }
+      }
+
+      const logoSize = largeLogoSize + (settledLogoSize - largeLogoSize) * settleProgress;
+      const logoOffset = largeLogoOffset + (settledLogoOffset - largeLogoOffset) * settleProgress;
+      introStaticLogoImage.style.width = `${logoSize}px`;
+      introStaticLogoImage.style.transform = settleProgress >= 1
+        ? 'none'
+        : `translate3d(0, ${logoOffset}px, 0)`;
+
+      introHeadline.style.opacity = String(headlineFinal ? 1 : headlineProgress);
+      introHeadline.style.visibility = reduced || progress > headlineStart ? 'visible' : 'hidden';
+      introHeadlineLines.forEach((line, index) => {
+        const lineStart = headlineStart + index * 0.025;
+        const lineProgress = headlineFinal
+          ? 1
+          : smoothStep((progress - lineStart) / (headlineEnd - lineStart));
+        line.style.opacity = String(lineProgress);
+        line.style.transform = lineProgress >= 1
+          ? 'none'
+          : `translate3d(0, ${(1 - lineProgress) * 1.5}vh, 0)`;
+      });
+    };
+
+    const scheduleRender = () => {
+      if (!rafId) {
+        rafId = window.requestAnimationFrame(renderIntro);
+      }
+    };
+
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) {
+            requestVideoLoad();
+            scheduleRender();
+          }
+        },
+        { rootMargin: '300px 0px 300px 0px' },
+      );
+      observer.observe(introSection);
+    } else {
+      requestVideoLoad();
+    }
+
+    introVideo.addEventListener('loadedmetadata', scheduleRender, { passive: true });
+    introVideo.addEventListener('loadeddata', () => {
+      introSticky.classList.add('cinematic-generator-intro__sticky--video-ready');
+      scheduleRender();
+    }, { passive: true });
+    introVideo.addEventListener('error', () => {
+      videoFailed = true;
+      introSticky.classList.add('cinematic-generator-intro__sticky--video-fallback');
+      scheduleRender();
+    }, { passive: true });
+    window.addEventListener('scroll', scheduleRender, { passive: true });
+    window.addEventListener('resize', () => {
+      measureIntro();
+      scheduleRender();
+    }, { passive: true });
+    reducedMotion.addEventListener?.('change', scheduleRender);
+
+    measureIntro();
+    scheduleRender();
+  }
+</script>

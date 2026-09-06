@@ -1,0 +1,263 @@
+---
+import '../styles/cinematic-scroll.css';
+---
+
+<div class="cinematic-scroll__sticky">
+  <div class="cinematic-scroll__fallback" aria-hidden="true"></div>
+  <video
+    class="cinematic-scroll__video"
+    poster="/media/cinematic/sunsetvi-scrub-poster.jpg"
+    preload="metadata"
+    muted
+    playsinline
+    aria-hidden="true"
+    tabindex="-1"
+  >
+    <source src="/media/cinematic/sunsetvi-scrub.mp4" type="video/mp4" />
+  </video>
+</div>
+
+<div class="cinematic-scroll__brand-overlay text-mask-container" aria-hidden="true">
+  <div class="text-mask-wrapper">
+    <div class="logo-date-container">
+      <div class="text-mask">grand<br><span class="the-highlight theft-offset">theft</span><br><span class="auto-offset">auto</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="cinematic-scroll__blackout" aria-hidden="true"></div>
+<section class="cinematic-scroll" id="cinematic-scroll" aria-label="SGXVI cinematic transition"></section>
+
+<script>
+  const section = document.querySelector('.cinematic-scroll');
+  const video = document.querySelector('.cinematic-scroll__video');
+  const blackout = document.querySelector('.cinematic-scroll__blackout');
+  const brandOverlay = document.querySelector('.cinematic-scroll__brand-overlay');
+  const brandText = brandOverlay?.querySelector('.text-mask');
+  const heroMask = document.querySelector('.hero-container .text-mask-container');
+  const heroContainer = document.querySelector('.hero-container');
+  const heroWrapper = document.querySelector('.hero-wrapper');
+  const sticky = document.querySelector('.cinematic-scroll__sticky');
+
+  if (section && video && blackout && brandOverlay && brandText && sticky) {
+    const scrubEndTime = 8;
+    const fadeStartTime = 7;
+    const fadeEndTime = 8;
+    const brandStartProgress = 0.78;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let rafId = 0;
+    let videoLoadRequested = false;
+    let scrollRange = 1;
+    let sectionTop = 0;
+    let cinematicStartScrollY = 0;
+    let cinematicEndScrollY = 1;
+    let cinematicScrollRange = 1;
+    let handoffStartScrollY = 0;
+    let handoffIntroTime = 0;
+    let hasScrolled = window.scrollY > 0;
+
+    const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+    const setBlackout = (opacity) => {
+      blackout.style.opacity = String(clamp(opacity, 0, 1));
+    };
+
+    const getLayoutTop = (element) => {
+      let top = 0;
+      let current = element;
+
+      while (current) {
+        top += current.offsetTop || 0;
+        current = current.offsetParent;
+      }
+
+      return top;
+    };
+
+    const measureScrollRange = () => {
+      scrollRange = Math.max(section.offsetHeight - window.innerHeight, 1);
+      sectionTop = section.getBoundingClientRect().top + window.scrollY;
+
+      const heroTop = heroWrapper ? getLayoutTop(heroWrapper) : 0;
+      const heroHeight = heroWrapper?.offsetHeight || window.innerHeight;
+      cinematicStartScrollY = heroTop + heroHeight;
+      cinematicEndScrollY = sectionTop + scrollRange;
+      cinematicScrollRange = Math.max(cinematicEndScrollY - cinematicStartScrollY, scrollRange, 1);
+      handoffStartScrollY = Number(
+        heroWrapper?.dataset.heroCinematicHandoffStart ?? cinematicStartScrollY,
+      );
+      handoffIntroTime = clamp(
+        ((cinematicStartScrollY - handoffStartScrollY) / cinematicScrollRange) * scrubEndTime,
+        0,
+        scrubEndTime,
+      );
+    };
+
+    const getProgress = () => {
+      return clamp(
+        (window.scrollY - cinematicStartScrollY) / cinematicScrollRange,
+        0,
+        1,
+      );
+    };
+
+    const updateLayerVisibility = (
+      cinematicActive,
+      handoffProgress,
+      handoffActive,
+    ) => {
+      const mediaActive = cinematicActive || handoffActive;
+      const brandActive =
+        cinematicActive ||
+        (handoffActive && handoffProgress >= brandStartProgress);
+      blackout.style.visibility = cinematicActive ? 'visible' : 'hidden';
+      brandOverlay.style.visibility = brandActive ? 'visible' : 'hidden';
+      sticky.style.visibility = mediaActive ? 'visible' : 'hidden';
+      sticky.classList.toggle(
+        'cinematic-scroll__sticky--active',
+        mediaActive,
+      );
+
+      // The independent fixed media is z=1; the transparent Hero stays above it.
+      if (heroWrapper) {
+        heroWrapper.style.zIndex = handoffActive ? '2' : '';
+      }
+
+      if (heroContainer) {
+        heroContainer.style.backgroundColor = mediaActive ? 'transparent' : '';
+      }
+
+      if (heroMask) {
+        heroMask.style.backgroundColor = mediaActive ? 'transparent' : '';
+      }
+
+      if (!brandActive || !hasScrolled) {
+        brandText.style.transform = '';
+        brandText.style.opacity = '';
+      }
+
+      return mediaActive;
+    };
+
+    const render = () => {
+      rafId = 0;
+
+      measureScrollRange();
+      const progress = getProgress();
+      const cinematicActive =
+        window.scrollY >= cinematicStartScrollY && window.scrollY <= cinematicEndScrollY;
+      const heroCinematicHandoffProgress = clamp(
+        Number(heroWrapper?.dataset.heroCinematicHandoff ?? 0),
+        0,
+        1,
+      );
+      const handoffActive =
+        heroCinematicHandoffProgress > 0 &&
+        window.scrollY < cinematicStartScrollY;
+      const mediaActive = updateLayerVisibility(
+        cinematicActive,
+        heroCinematicHandoffProgress,
+        handoffActive,
+      );
+      video.style.opacity = mediaActive ? '1' : '0';
+
+      if (mediaActive) {
+        requestVideoLoad();
+      }
+
+      if (reducedMotion.matches) {
+        setBlackout((progress - 0.65) / 0.35);
+        return;
+      }
+
+      const currentTime = cinematicActive
+        ? handoffIntroTime + progress * (scrubEndTime - handoffIntroTime)
+        : handoffActive
+          ? heroCinematicHandoffProgress * handoffIntroTime
+          : window.scrollY > cinematicEndScrollY
+            ? scrubEndTime
+            : 0;
+
+      if (cinematicActive) {
+        const brandScale = 1 - progress * 0.75;
+        const brandY = progress * -25;
+        brandText.style.opacity = '1';
+        brandText.style.transform = `translate3d(0, ${brandY}vh, 0) scale(${brandScale})`;
+      } else if (
+        handoffActive &&
+        heroCinematicHandoffProgress >= brandStartProgress
+      ) {
+        const brandProgress = clamp(
+          (heroCinematicHandoffProgress - brandStartProgress) /
+            (1 - brandStartProgress),
+          0,
+          1,
+        );
+        brandText.style.opacity = String(brandProgress);
+        brandText.style.transform = 'translate3d(0, 0, 0) scale(1)';
+      }
+
+      if (video.readyState >= 1 && Math.abs(video.currentTime - currentTime) > 0.0001) {
+        video.currentTime = currentTime;
+      }
+
+      setBlackout((currentTime - fadeStartTime) / (fadeEndTime - fadeStartTime));
+    };
+
+    const scheduleRender = () => {
+      if (!rafId) {
+        rafId = window.requestAnimationFrame(render);
+      }
+    };
+
+    const requestVideoLoad = () => {
+      if (!reducedMotion.matches && !videoLoadRequested) {
+        videoLoadRequested = true;
+        // Keep an already decoded frame when the Hero reveals the media layer.
+        if (video.readyState < 2) {
+          video.load();
+        }
+      }
+    };
+
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) {
+            requestVideoLoad();
+            scheduleRender();
+          }
+        },
+        { rootMargin: '300px 0px 300px 0px' }
+      );
+      observer.observe(section);
+    } else {
+      requestVideoLoad();
+    }
+
+    video.addEventListener('loadedmetadata', scheduleRender, { passive: true });
+    video.addEventListener('loadeddata', () => {
+      sticky.classList.add('cinematic-scroll__sticky--video-ready');
+      scheduleRender();
+    }, { passive: true });
+    video.addEventListener('error', () => {
+      sticky.classList.remove('cinematic-scroll__sticky--video-ready');
+      sticky.classList.add('cinematic-scroll__sticky--fallback');
+    }, { passive: true });
+    window.addEventListener('scroll', () => {
+      hasScrolled = true;
+      scheduleRender();
+    }, { passive: true });
+    window.addEventListener('hero-cinematic-handoff', scheduleRender);
+    window.addEventListener('resize', () => {
+      measureScrollRange();
+      scheduleRender();
+    }, { passive: true });
+    reducedMotion.addEventListener?.('change', () => {
+      measureScrollRange();
+      scheduleRender();
+    });
+    measureScrollRange();
+    scheduleRender();
+  }
+</script>

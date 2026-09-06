@@ -25,205 +25,197 @@ export default function HeroAnimation() {
         smoothWheel: true,
       });
 
-    function raf(time: number) {
-      lenis.raf(time);
-      requestAnimationFrame(raf);
-    }
-
-    requestAnimationFrame(raf);
-
-    gsap.set(".text-mask-container", {
-      opacity: 0,
-    });
-
-    gsap.set(".text-background", {
-      opacity: 0,
-    });
-
-    gsap.set(".release-date", {
-      opacity: 0,
-    });
-    gsap.set(".text-mask", {
-      scale: 3.5,
-      opacity: 0,
-    });
-    gsap.set(".date-mask-container", {
-      height: 0,
-    });
-
-    gsap.set(".release-date", {
-      opacity: 0,
-      y: 150,
-    });
-    gsap.set(".background-image", {
-      scale: 1.2,
-    });
-
-    gsap.set(".trailer-button-container", {
-      opacity: 1,
-    });
-
-    const tl = gsap.timeline({
-      scrollTrigger: {
-        trigger: ".hero-wrapper",
-        start: "top top",
-        end: "+=100%",
-        scrub: true,
-        pin: true,
-        pinSpacing: true,
-      },
-    });
-
-    // 1. Iniciar con el texto grande y visible en la parte superior
-    gsap.set(".reveal-text", {
-      scale: 1,
-      opacity: 1,
-    });
-
-    tl.to(
-      [".reveal-text", ".trailer-button-container"],
-      {
-        opacity: 0,
-        duration: 1,
-        ease: "power2.inOut",
-      },
-      ">"
-    );
-
-    tl.to(
-      ".text-mask-container",
-      {
-        opacity: 3,
-        duration: 1,
-        ease: "power2.inOut",
-      },
-      ">"
-    );
-
-    tl.fromTo(
-      ".text-mask",
-      {
-        scale: 3.5,
-        opacity: 1,
-        y: 0,
-      },
-      {
-        scale: 1,
-        opacity: 1,
-        y: 0,
-        duration: 1.5,
-        ease: "power3.out",
-      },
-      "<"
-    );
-
-    tl.fromTo(
-      ".background-image",
-      {
-        scale: 1.5,
-      },
-      {
-        scale: 1,
-        duration: 1.5,
-        ease: "power3.out",
-      },
-      "<"
-    );
-
-    tl.to(
-      {},
-      {
-        duration: 0.5,
-      },
-      ">"
-    );
-    tl.to(
-      ".text-mask",
-      {
-        scale: 0.25,
-        y: "-25vh",
-        x: 0,
-        duration: 1.2,
-        ease: "power2.inOut",
-      },
-      ">"
-    );
-
-    tl.to(
-      ".background-image",
-      {
-        scale: 0,
-        y: "-10vh",
-        duration: 1.5,
-        ease: "power2.inOut",
-      },
-      "<"
-    );
-
-    tl.to(
-      ".date-mask-container",
-      {
-        height: "50vh",
-        duration: 1.2,
-        ease: "power1.inOut",
-      },
-      "<0.2"
-    );
-
-    tl.to(
-      ".release-date",
-      {
-        y: 0,
-        opacity: 1,
-        duration: 1.5,
-        ease: "power2.out",
-      },
-      "<0.7"
-    );
-
-    tl.to(
-      ".text-mask",
-      {
-        opacity: 0,
-        scale: 0,
-        y: "-30vh",
-        duration: 0.8,
-        ease: "power3.out",
-      },
-      "<0.2"
-    );
-    tl.to(
-      ".vi-logo-animated-container",
-      {
-        opacity: 1,
-        scale: 1,
-        y: "-5vh",
-        duration: 1.5,
-        ease: "elastic.out(1, 0.4)",
-      },
-      "<0.3"
-    );
-
-    tl.set(
-      ".trailer-button-container",
-      {
-        opacity: 0,
-        display: "none",
-      },
-      "<"
-    );
-
-    const hideLoading = () => {
-      const overlay = document.getElementById("loading-overlay");
-      if (overlay) {
-        overlay.style.opacity = "0";
-        setTimeout(() => {
-          overlay.style.display = "none";
-        }, 400);
+      function raf(time: number) {
+        lenis.raf(time);
+        requestAnimationFrame(raf);
       }
-    };
-    window.addEventListener("load", hideLoading);
-    setTimeout(hideLoading, 1200);
+
+      requestAnimationFrame(raf);
+
+      gsap.set(".hero-container .text-mask-container", {
+        opacity: 0,
+      });
+
+      gsap.set(".hero-container .text-background", {
+        opacity: 0,
+      });
+
+      gsap.set(".hero-container .text-mask", {
+        scale: 3.5,
+        opacity: 0,
+      });
+
+      gsap.set(".hero-container .background-image", {
+        scale: 1.5,
+      });
+
+      gsap.set(".hero-container .trailer-button-container", {
+        opacity: 1,
+      });
+
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: ".hero-wrapper",
+          start: "top top",
+          end: "+=100%",
+          scrub: true,
+          pin: true,
+          pinSpacing: true,
+        },
+      });
+
+      gsap.set(".hero-container .reveal-text", {
+        scale: 1,
+        opacity: 1,
+      });
+
+      tl.to(
+        [".hero-container .reveal-text", ".hero-container .trailer-button-container"],
+        {
+          opacity: 0,
+          duration: 1,
+          ease: "power2.inOut",
+        },
+        ">"
+      );
+
+      tl.to(
+        ".hero-container .text-mask-container",
+        {
+          // Keep the legacy black/brand plane hidden until the cinematic takes over.
+          opacity: 0,
+          duration: 1,
+          ease: "power2.inOut",
+        },
+        ">"
+      );
+
+      tl.fromTo(
+        ".hero-container .text-mask",
+        {
+          scale: 3.5,
+          opacity: 1,
+          y: 0,
+        },
+        {
+          scale: 1,
+          opacity: 1,
+          y: 0,
+          duration: 1.5,
+          ease: "power3.out",
+        },
+        "<"
+      );
+
+      tl.to(
+        {},
+        {
+          duration: 0.5,
+        },
+        ">"
+      );
+
+      tl.addLabel("hero-cinematic-handoff");
+
+      tl.to(
+        ".hero-container .text-mask",
+        {
+          scale: 0.25,
+          y: "-25vh",
+          x: 0,
+          duration: 1.2,
+          ease: "power2.inOut",
+        },
+        ">"
+      );
+
+      tl.fromTo(
+        ".hero-container .background-image",
+        {
+          opacity: 1,
+        },
+        {
+          opacity: 0,
+          duration: 1.2,
+          ease: "none",
+        },
+        "<"
+      );
+
+      tl.fromTo(
+        ".hero-container .characters-image",
+        { opacity: 1 },
+        {
+          opacity: 0,
+          duration: 1.2,
+          ease: "none",
+        },
+        "<"
+      );
+
+      tl.set(
+        ".hero-container .trailer-button-container",
+        {
+          opacity: 0,
+          display: "none",
+        },
+        "<"
+      );
+
+      tl.set(
+        ".hero-container .text-mask",
+        {
+          opacity: 0,
+        },
+        "<+1.2"
+      );
+
+      tl.to(
+        ".hero-container .background-image",
+        {
+          scale: 1.65,
+          duration: 4.2,
+          ease: "none",
+        },
+        0
+      );
+
+      const heroWrapper = document.querySelector(".hero-wrapper");
+      const handoffStartTime = tl.labels["hero-cinematic-handoff"];
+      const handoffDuration = 1.2;
+      const syncHeroCinematicHandoff = () => {
+        const handoffProgress = Math.min(
+          Math.max((tl.time() - handoffStartTime) / handoffDuration, 0),
+          1,
+        );
+        const scrollTrigger = (tl as any).scrollTrigger;
+        const scrollStart = Number(scrollTrigger?.start ?? 0);
+        const scrollEnd = Number(scrollTrigger?.end ?? window.innerHeight);
+        const scrollDistance = Math.max(scrollEnd - scrollStart, 1);
+        const handoffStartScrollY =
+          scrollStart + (handoffStartTime / Math.max(tl.duration(), 1)) * scrollDistance;
+
+        if (heroWrapper) {
+          heroWrapper.dataset.heroCinematicHandoff = String(handoffProgress);
+          heroWrapper.dataset.heroCinematicHandoffStart = String(handoffStartScrollY);
+          window.dispatchEvent(new Event("hero-cinematic-handoff"));
+        }
+      };
+      tl.eventCallback("onUpdate", syncHeroCinematicHandoff);
+      syncHeroCinematicHandoff();
+
+      const hideLoading = () => {
+        const overlay = document.getElementById("loading-overlay");
+        if (overlay) {
+          overlay.style.opacity = "0";
+          setTimeout(() => {
+            overlay.style.display = "none";
+          }, 400);
+        }
+      };
+
+      window.addEventListener("load", hideLoading);
+      setTimeout(hideLoading, 1200);
 
       return () => {
         isMounted = false;

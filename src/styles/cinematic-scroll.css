@@ -1,0 +1,362 @@
+.cinematic-scroll {
+  position: relative;
+  height: 400vh;
+  background: #000;
+  isolation: isolate;
+}
+
+.cinematic-scroll__sticky {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100svh;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: #000;
+  visibility: hidden;
+}
+
+.cinematic-scroll__sticky--active {
+  z-index: 1;
+  background: transparent;
+}
+
+.cinematic-scroll__fallback,
+.cinematic-scroll__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.cinematic-scroll__fallback {
+  z-index: 2;
+  background: #000 url('/media/cinematic/sunsetvi-scrub-poster.jpg') center / cover no-repeat;
+}
+
+.cinematic-scroll__sticky--video-ready .cinematic-scroll__fallback {
+  opacity: 0;
+}
+
+.cinematic-scroll__video {
+  z-index: 1;
+  display: block;
+  object-fit: cover;
+  object-position: 50% 50%;
+  background: #000;
+  opacity: 0;
+}
+
+.cinematic-scroll__blackout {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  background: #000;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+.cinematic-scroll__brand-overlay.text-mask-container {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  width: 100%;
+  height: 100svh;
+  min-height: 100dvh;
+  background: transparent;
+  isolation: auto;
+  pointer-events: none;
+}
+
+.cinematic-scroll__brand-overlay .text-mask-wrapper {
+  height: 100%;
+}
+
+.cinematic-scroll__brand-overlay .text-mask,
+.cinematic-scroll__brand-overlay .text-mask-wrapper,
+.cinematic-scroll__brand-overlay .logo-date-container {
+  background: transparent;
+  background-color: transparent;
+}
+
+.cinematic-generator-intro {
+  position: relative;
+  height: calc((120vh - 100svh) + 100svh);
+  min-height: 100vh;
+  background: #000;
+  isolation: isolate;
+  z-index: 90;
+}
+
+.cinematic-generator-intro__takeover-spacer {
+  height: calc(120vh - 100svh);
+  min-height: 1px;
+  background: #000;
+}
+
+.cinematic-generator-intro__flow-panel {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.cinematic-generator-intro__flow-panel--visible {
+  visibility: visible;
+}
+
+.cinematic-generator-intro__sticky {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: #000;
+  isolation: isolate;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.cinematic-generator-intro__sticky--active {
+  visibility: visible;
+}
+
+.cinematic-generator-intro__fallback,
+.cinematic-generator-intro__video,
+.cinematic-generator-intro__blackout {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.cinematic-generator-intro__fallback {
+  z-index: 1;
+  background: #000 url('/media/cinematic/sgxvi-vi-logo-scrub-poster.jpg') center / contain no-repeat;
+  opacity: 0;
+  transform: scale(var(--video-scale, 1));
+  pointer-events: none;
+}
+
+.cinematic-generator-intro__video {
+  z-index: 2;
+  display: block;
+  object-fit: contain;
+  object-position: center;
+  background: #000;
+  opacity: 0;
+  transform: scale(var(--video-scale, 1));
+  transform-origin: center;
+  will-change: opacity, transform;
+  pointer-events: none;
+}
+
+.cinematic-generator-intro__blackout {
+  z-index: 5;
+  background: #000;
+  opacity: 1;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+.cinematic-generator-intro__final-composition {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(1rem, min(5.5vw, 11.5svh), 6rem);
+  padding: 8svh 1rem 5svh;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.cinematic-generator-intro__sticky > .cinematic-generator-intro__final-composition {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.cinematic-generator-intro__flow-panel > .cinematic-generator-intro__final-composition {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.cinematic-generator-intro__static-logo {
+  position: relative;
+  inset: auto;
+  flex: 0 0 auto;
+  width: var(--logo-settled-size, min(35vw, 450px));
+  height: auto;
+  aspect-ratio: 807 / 540;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+.cinematic-generator-intro__static-logo-image {
+  display: block;
+  width: var(--logo-large-size, min(56vw, 860px));
+  max-width: none;
+  height: auto;
+  object-fit: contain;
+  will-change: width, transform;
+}
+
+.cinematic-generator-intro__headline {
+  position: relative;
+  inset: auto;
+  flex: 0 0 auto;
+  width: 100%;
+  height: auto;
+  box-sizing: border-box;
+  display: block;
+  padding: 0 1rem;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+.cinematic-generator-intro__headline .release-date {
+  width: 100%;
+  margin: 0;
+  position: relative;
+  font-size: clamp(3rem, min(7.2vw, 15svh), 9rem);
+  font-weight: 500;
+  text-transform: uppercase;
+  text-align: center;
+  opacity: 1;
+  line-height: 0.95;
+  /* Cancel the legacy .release-date translate; only the reveal lines move. */
+  transform: none;
+  background: linear-gradient(
+    to bottom,
+    #ffa76a 20%,
+    #ff8d73 25%,
+    #ff7e7e 40%,
+    #f65f88 70%,
+    #e25a9b 50%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  text-shadow: none;
+  font-family: "Poppins", sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.cinematic-generator-intro__headline-line {
+  display: block;
+  background-image: linear-gradient(180deg, #ffb36f 0%, #ff8d73 52%, #f36b87 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  opacity: 0;
+  transform: translate3d(0, 1.5vh, 0);
+  will-change: opacity, transform;
+}
+
+.cinematic-generator-intro__headline-line:nth-child(2) {
+  background-image: linear-gradient(180deg, #ff9674 0%, #ff7083 52%, #e85b99 100%);
+}
+
+.cinematic-generator-intro__headline-line:nth-child(3) {
+  background-image: linear-gradient(180deg, #f87788 0%, #e5529b 52%, #cc4fae 100%);
+}
+
+.cinematic-generator-intro__flow-panel .cinematic-generator-intro__static-logo {
+  width: var(--logo-settled-size, min(35vw, 450px));
+  opacity: 1;
+}
+
+.cinematic-generator-intro__flow-panel .cinematic-generator-intro__static-logo-image {
+  width: var(--logo-settled-size, min(35vw, 450px));
+  transform: none;
+}
+
+.cinematic-generator-intro__flow-panel .cinematic-generator-intro__headline {
+  opacity: 1;
+  visibility: visible;
+}
+
+.cinematic-generator-intro__flow-panel .cinematic-generator-intro__headline-line {
+  opacity: 1;
+  transform: none;
+}
+
+.cinematic-generator-intro__sticky--video-fallback .cinematic-generator-intro__fallback {
+  opacity: 1;
+}
+
+.cinematic-scroll__sticky--fallback .cinematic-scroll__video {
+  visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cinematic-scroll {
+    height: 150vh;
+  }
+
+  .cinematic-scroll__video {
+    object-position: 50% 50%;
+  }
+
+  .cinematic-generator-intro {
+    height: calc((120vh - 100svh) + 100svh);
+  }
+
+  .cinematic-generator-intro__video {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .cinematic-scroll__sticky {
+    height: 100svh;
+    min-height: 100dvh;
+  }
+
+  .cinematic-scroll__video {
+    object-position: 50% 50%;
+  }
+
+  .cinematic-generator-intro__sticky {
+    height: 100svh;
+    min-height: 100dvh;
+  }
+
+  .cinematic-generator-intro__headline .release-date {
+    font-size: clamp(2.4rem, min(7.8vw, 7.3vh), 4rem);
+    letter-spacing: 0.03em;
+  }
+}
+
+@media (max-width: 480px) {
+  .cinematic-generator-intro__headline .release-date {
+    font-size: clamp(2.25rem, min(9.6vw, 6.5vh), 3rem);
+    letter-spacing: 0.02em;
+    line-height: 0.9;
+  }
+}
