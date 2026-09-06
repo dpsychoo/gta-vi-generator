@@ -1,4 +1,6 @@
 ---
+import { Image } from 'astro:assets';
+import trailerLogo from '../assets/trailer-logo.svg';
 import '../styles/cinematic-scroll.css';
 ---
 
@@ -20,7 +22,13 @@ import '../styles/cinematic-scroll.css';
 <div class="cinematic-scroll__brand-overlay text-mask-container" aria-hidden="true">
   <div class="text-mask-wrapper">
     <div class="logo-date-container">
-      <div class="text-mask">grand<br><span class="the-highlight theft-offset">theft</span><br><span class="auto-offset">auto</span></div>
+      <div class="cinematic-scroll__brand-block">
+        <div class="text-mask">grand<br><span class="the-highlight theft-offset">theft</span><br><span class="auto-offset">auto</span></div>
+        <div class="cinematic-scroll__powered-lockup">
+          <Image src={trailerLogo} alt="" class="cinematic-scroll__trailer-logo" loading="eager" />
+          <span class="cinematic-scroll__powered-by">POWERED BY SGODX</span>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -33,13 +41,13 @@ import '../styles/cinematic-scroll.css';
   const video = document.querySelector('.cinematic-scroll__video');
   const blackout = document.querySelector('.cinematic-scroll__blackout');
   const brandOverlay = document.querySelector('.cinematic-scroll__brand-overlay');
-  const brandText = brandOverlay?.querySelector('.text-mask');
+  const brandBlock = brandOverlay?.querySelector('.cinematic-scroll__brand-block');
   const heroMask = document.querySelector('.hero-container .text-mask-container');
   const heroContainer = document.querySelector('.hero-container');
   const heroWrapper = document.querySelector('.hero-wrapper');
   const sticky = document.querySelector('.cinematic-scroll__sticky');
 
-  if (section && video && blackout && brandOverlay && brandText && sticky) {
+  if (section && video && blackout && brandOverlay && brandBlock && sticky) {
     const scrubEndTime = 8;
     const fadeStartTime = 7;
     const fadeEndTime = 8;
@@ -132,8 +140,8 @@ import '../styles/cinematic-scroll.css';
       }
 
       if (!brandActive || !hasScrolled) {
-        brandText.style.transform = '';
-        brandText.style.opacity = '';
+        brandBlock.style.transform = '';
+        brandBlock.style.opacity = '';
       }
 
       return mediaActive;
@@ -181,8 +189,8 @@ import '../styles/cinematic-scroll.css';
       if (cinematicActive) {
         const brandScale = 1 - progress * 0.75;
         const brandY = progress * -25;
-        brandText.style.opacity = '1';
-        brandText.style.transform = `translate3d(0, ${brandY}vh, 0) scale(${brandScale})`;
+        brandBlock.style.opacity = '1';
+        brandBlock.style.transform = `translate3d(0, ${brandY}vh, 0) scale(${brandScale})`;
       } else if (
         handoffActive &&
         heroCinematicHandoffProgress >= brandStartProgress
@@ -193,8 +201,8 @@ import '../styles/cinematic-scroll.css';
           0,
           1,
         );
-        brandText.style.opacity = String(brandProgress);
-        brandText.style.transform = 'translate3d(0, 0, 0) scale(1)';
+        brandBlock.style.opacity = String(brandProgress);
+        brandBlock.style.transform = 'translate3d(0, 0, 0) scale(1)';
       }
 
       if (video.readyState >= 1 && Math.abs(video.currentTime - currentTime) > 0.0001) {

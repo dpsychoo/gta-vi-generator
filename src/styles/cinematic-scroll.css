@@ -81,6 +81,47 @@
   background-color: transparent;
 }
 
+.cinematic-scroll__brand-block {
+  position: relative;
+  width: 100%;
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+
+.cinematic-scroll__powered-lockup {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(0.45rem, 1.1vw, 0.85rem);
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  margin-top: clamp(1rem, 2.25vh, 2rem);
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.92);
+  pointer-events: none;
+}
+
+.cinematic-scroll__trailer-logo {
+  display: block;
+  width: clamp(3.75rem, 6.5vw, 6rem);
+  height: auto;
+}
+
+.cinematic-scroll__powered-by {
+  display: block;
+  color: inherit;
+  font-family: "Poppins", sans-serif;
+  font-size: clamp(0.55rem, 0.85vw, 0.8rem);
+  font-weight: 500;
+  letter-spacing: clamp(0.16em, 0.35vw, 0.32em);
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .cinematic-generator-intro {
   position: relative;
   height: calc((120vh - 100svh) + 100svh);
