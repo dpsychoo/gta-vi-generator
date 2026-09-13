@@ -1,5 +1,5 @@
 {
-  "name": "gt6-landing-replica",
+  "name": "sgx-vi-generator",
   "type": "module",
   "version": "0.0.1",
   "scripts": {
